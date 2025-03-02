@@ -27,28 +27,13 @@
             }
           ],
           "category": ["BROWSABLE", "DEFAULT"]
-        },
-        {
-          "action": "VIEW",
-          "data": [
-            {
-              "scheme": "com.returntrackr"
-            }
-          ],
-          "category": [
-            "BROWSABLE",
-            "DEFAULT"
-          ]
         }
       ]
     },
     "ios": {
       "bundleIdentifier": "com.returntrackr",
       "googleServicesFile": "./GoogleService-Info.plist",
-      "supportsTablet": true,
-      "associatedDomains": [
-        "applinks:yourapp.com"
-      ]
+      "supportsTablet": true
     },
     "web": {
       "bundler": "metro",

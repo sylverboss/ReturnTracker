@@ -1,56 +1,40 @@
 import React, { useEffect } from 'react';
 import { supabase } from '../lib/supabase';
-import { useNavigationContext } from '../context/NavigationContext';
-import { Alert, Platform } from 'react-native';
 import { router } from 'expo-router';
 
 export function AuthStateListener() {
-  const navigation = useNavigationContext();
-
   useEffect(() => {
     const subscription = supabase.auth.onAuthStateChange(async (event, session) => {
       console.log("Auth state changed:", event);
       
       if (event === 'SIGNED_IN' && session) {
-        const { data: userData } = await supabase.auth.getUser();
+        // Check if this is the first login after email confirmation
+        const { data: user } = await supabase.auth.getUser();
+        console.log("User signed in:", user);
         
-        if (userData && userData.user) {
-          // Check if this is the first sign-in after email verification
-          const isFirstLogin = !userData.user.user_metadata.profileCompleted;
+        if (user) {
+          // Check if user has a profile in the profiles table
+          const { data: profile, error } = await supabase
+            .from('profiles')
+            .select('*')
+            .eq('id', user.user.id)
+            .single();
+            
+          console.log("Profile check result:", profile, error);
           
-          // Check if the user just confirmed their email
-          const justConfirmed = userData.user.email_confirmed_at && 
-            (new Date().getTime() - new Date(userData.user.email_confirmed_at).getTime() < 300000); // Within 5 minutes
-          
-          if (justConfirmed) {
-            // Show confirmation message
-            if (Platform.OS !== 'web') {
-              Alert.alert(
-                "Email Verified",
-                "Your email has been successfully verified. Let's complete your profile.",
-                [{ text: "Continue", onPress: () => navigation.navigate('ProfileCompletion') }]
-              );
-            } else {
-              // On web, we'll use the email-confirmed page
-              router.replace('/email-confirmed');
-            }
-          } else if (isFirstLogin) {
-            console.log("First login after verification, navigating to profile completion");
-            navigation.navigate('ProfileCompletion');
+          if (!profile || error) {
+            // No profile exists yet, direct to profile completion
+            console.log("Navigating to profile completion");
+            router.replace('/profile-completion');
           }
         }
-      } else if (event === 'USER_UPDATED') {
-        console.log("User updated");
-      } else if (event === 'PASSWORD_RECOVERY') {
-        // Handle password recovery flow
-        console.log("Password recovery initiated");
       }
     });
 
     return () => {
       subscription.data.subscription.unsubscribe();
     };
-  }, [navigation]);
+  }, []);
 
-  return null; // This component doesn't render anything
+  return null;
 } 

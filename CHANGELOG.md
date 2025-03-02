@@ -246,27 +246,17 @@
 - New sign-up flow requesting only email and password.
 - Profile completion page for first-time login after email confirmation.
 - Created AuthStateListener component to handle navigation after authentication.
-- Added email verification handling with user-friendly feedback.
-- Implemented proper loading state management during sign-up process.
-- Added email confirmation success page with app deep linking.
-- Implemented automatic app opening after email verification on mobile.
-- Added detailed error logging for authentication issues.
 
 ### Changed
 - Updated Supabase auth logic to redirect to profile completion page.
 - Removed name field from sign-up page.
 - Moved navigation logic from supabase.ts to a proper React component.
-- Improved user experience with clear feedback after sign-up.
-- Enhanced profile completion page with proper React Native components.
-- Optimized email verification flow with better user guidance.
-- Centralized authentication configuration in supabase.ts.
-- Improved error handling with more specific error messages.
-
-### Fixed
-- Fixed issue where the app would get stuck on the sign-up screen after successful sign-up.
-- Resolved loading spinner not stopping after sign-up completion.
-- Added proper navigation after email verification.
-- Improved deep linking configuration for better cross-platform experience.
-- Fixed "Anonymous sign-ins are disabled" error by properly configuring sign-up options.
-- Added email redirect configuration to ensure proper app opening after verification.
-- Resolved inconsistencies between authentication providers and redirect URLs.
+- Fixed issue with sign-up process where it was being interpreted as anonymous sign-in.
+- Updated AuthContext's signUp function to work without displayName parameter.
+- Enhanced profile completion page to create user profile in database.
+- Improved authentication flow to properly handle email confirmation.
+- Removed React Navigation in favor of Expo Router
+- Fixed authentication flow to work properly with Expo Router
+- Updated navigation logic in AuthStateListener to use Expo Router
+- Simplified App.tsx to use Expo Router's Slot component
+- Added proper auth layout configuration

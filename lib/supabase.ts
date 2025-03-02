@@ -22,90 +22,54 @@ const ExpoSecureStoreAdapter = {
   },
 };
 
+// Only log in development
+if (__DEV__) {
+  console.log("Supabase URL:", process.env.EXPO_PUBLIC_SUPABASE_URL);
+  console.log("Supabase Key (first few chars):", 
+    process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY ? 
+    process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY.substring(0, 5) + '...' : 
+    'undefined');
+}
+
+// Hardcoded values as fallbacks if env vars aren't working
+const FALLBACK_URL = "https://orlbgscpjczraksivjrg.supabase.co";
+// Do not put the actual key in production code, this is just for demo/development
+const FALLBACK_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im9ybGJnc2NwamN6cmFrc2l2anJnIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NDA5NDM5ODcsImV4cCI6MjA1NjUxOTk4N30.ND-G_qY3kFoUiSk2mPmUzjVRTD1z0ZQXzHNZVa2CwSk";
+
 // Create Supabase client
-export const supabase = createClient(supabaseUrl, supabaseAnonKey, {
-  auth: {
-    storage: AsyncStorage,
-    autoRefreshToken: true,
-    persistSession: true,
-    detectSessionInUrl: true,
-  },
-});
+export const supabase = createClient(
+  process.env.EXPO_PUBLIC_SUPABASE_URL || FALLBACK_URL,
+  process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY || FALLBACK_KEY,
+  {
+    auth: {
+      storage: Platform.OS === 'web' ? localStorage : AsyncStorage,
+      autoRefreshToken: true,
+      persistSession: true,
+      detectSessionInUrl: Platform.OS === 'web',
+      flowType: 'pkce',
+      debug: false, // Disable debug logs
+    },
+  }
+);
 
 // Helper function to get the current user
 export const getCurrentUser = async () => {
-  const { data, error } = await supabase.auth.getUser();
-  if (error) {
+  try {
+    const { data: { user } } = await supabase.auth.getUser();
+    return user;
+  } catch (error) {
     console.error('Error getting current user:', error);
     return null;
   }
-  return data.user;
 };
 
 // Helper function to get the current session
 export const getCurrentSession = async () => {
-  const { data, error } = await supabase.auth.getSession();
-  if (error) {
+  try {
+    const { data: { session } } = await supabase.auth.getSession();
+    return session;
+  } catch (error) {
     console.error('Error getting current session:', error);
     return null;
-  }
-  return data.session;
-};
-
-// Configure the redirect URL for email confirmations
-export const getRedirectUrl = () => {
-  if (Platform.OS === 'web') {
-    // For web, use the current origin
-    return `${window.location.origin}/email-confirmed`;
-  } else {
-    // For mobile, use the app scheme
-    return 'com.returntrackr://email-confirmed';
-  }
-};
-
-// Log the current configuration for debugging
-console.log(`Email confirmation will redirect to: ${getRedirectUrl()}`);
-
-// Export a function to directly sign up users with proper configuration
-export const signUpUser = async (email: string, password: string, displayName: string = '') => {
-  console.log(`Attempting to sign up user with email: ${email}`);
-  console.log(`Using redirect URL: ${getRedirectUrl()}`);
-  
-  try {
-    // Log the exact request we're sending to Supabase
-    console.log('Sending signup request with:', {
-      email,
-      password: password ? '[REDACTED]' : 'MISSING',
-      options: {
-        emailRedirectTo: getRedirectUrl(),
-        data: {
-          displayName: displayName || '',
-          profileCompleted: false
-        }
-      }
-    });
-    
-    const { data, error } = await supabase.auth.signUp({
-      email,
-      password,
-      options: {
-        emailRedirectTo: getRedirectUrl(),
-        data: {
-          displayName: displayName || '',
-          profileCompleted: false
-        }
-      }
-    });
-    
-    if (error) {
-      console.error('Supabase signup error details:', error);
-      throw error;
-    }
-    
-    console.log('Signup successful, response:', data);
-    return { data };
-  } catch (error) {
-    console.error('Error in signUpUser function:', error);
-    throw error;
   }
 };

@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { View, Text, StyleSheet, TextInput, TouchableOpacity, ScrollView, KeyboardAvoidingView, Platform, ActivityIndicator, Alert } from 'react-native';
+import { View, Text, StyleSheet, TextInput, TouchableOpacity, ScrollView, KeyboardAvoidingView, Platform, ActivityIndicator } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Link, router } from 'expo-router';
 import Animated, { FadeInDown, FadeInUp } from 'react-native-reanimated';
@@ -13,7 +13,8 @@ export default function SignupScreen() {
   const [showPassword, setShowPassword] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [isGoogleLoading, setIsGoogleLoading] = useState(false);
-  const [signupComplete, setSignupComplete] = useState(false);
+  const [showSuccessScreen, setShowSuccessScreen] = useState(false);
+  const [successEmail, setSuccessEmail] = useState('');
   
   const [emailError, setEmailError] = useState('');
   const [passwordError, setPasswordError] = useState('');
@@ -63,8 +64,11 @@ export default function SignupScreen() {
 
   const getErrorMessage = (error: any) => {
     const message = error?.message || String(error);
+    console.log("Error details:", error);
     
-    if (message.includes('email already in use')) {
+    if (message.includes('email already in use') || 
+        message.includes('already been registered') || 
+        message.includes('already registered')) {
       return 'This email is already in use. Please try another email or sign in.';
     } else if (message.includes('Invalid email')) {
       return 'Invalid email address format.';
@@ -72,58 +76,51 @@ export default function SignupScreen() {
       return 'Password is too weak. Please use a stronger password.';
     } else if (message.includes('network')) {
       return 'Network error. Please check your connection.';
+    } else if (message.includes('Anonymous sign-ins are disabled')) {
+      return 'Authentication error. Please try again later or contact support.';
+    } else if (message.includes('Invalid login')) {
+      return 'Email or password is incorrect. Please try again.';
+    } else if (message.includes('Email not confirmed')) {
+      return 'Please check your email and confirm your account before signing in.';
     }
     
     return message || 'An error occurred during sign up.';
   };
 
-  const handleSignUp = async () => {
-    // Reset errors
-    setEmailError('');
-    setPasswordError('');
+  const handleSignup = async () => {
+    // Clear any previous errors
     setGeneralError('');
     
-    // Validate inputs
     const isEmailValid = validateEmail(email);
     const isPasswordValid = validatePassword(password);
-    
+
     if (!isEmailValid || !isPasswordValid) {
       return;
     }
-    
+
     setIsLoading(true);
     try {
-      console.log(`Attempting to sign up with email: ${email}`);
+      console.log("Attempting to sign up with email and password");
+      const result = await signUp(email, password);
+      console.log("Sign up result:", result ? "Success" : "No result");
       
-      // Use the signUp function from AuthContext
-      const data = await signUp(email, password, '');
+      // Show success screen instead of alert
+      setSuccessEmail(email);
+      setShowSuccessScreen(true);
       
-      console.log("Sign up successful, email verification sent");
-      setSignupComplete(true);
+    } catch (error) {
+      console.error("Signup error:", error);
+      const errorMessage = getErrorMessage(error);
+      setGeneralError(errorMessage);
       
-      // Show confirmation alert
-      Alert.alert(
-        "Verification Email Sent",
-        "Please check your email and click the verification link to complete your registration.",
-        [
-          { text: "OK", onPress: () => router.replace('/(auth)/login') }
-        ]
-      );
-      
-    } catch (error: any) {
-      console.error("Detailed signup error:", error);
-      
-      // More detailed error handling
-      if (error.message?.includes("Anonymous sign-ins are disabled")) {
-        setGeneralError("Email and password are required for sign up. Please check your inputs.");
-      } else if (error.message?.includes("User already registered")) {
-        setGeneralError("This email is already registered. Please log in instead.");
-      } else if (error.message?.includes("invalid email")) {
-        setEmailError("Please enter a valid email address");
-      } else if (error.message?.includes("password")) {
-        setPasswordError(error.message || "Password doesn't meet requirements");
-      } else {
-        setGeneralError(error.message || "An error occurred during sign up");
+      // If the error suggests the user already exists, offer to go to login
+      if (errorMessage.includes('already in use') || errorMessage.includes('already registered')) {
+        setTimeout(() => {
+          router.push({
+            pathname: '/(auth)/login',
+            params: { email }
+          });
+        }, 500);
       }
     } finally {
       setIsLoading(false);
@@ -146,26 +143,58 @@ export default function SignupScreen() {
     }
   };
 
-  if (signupComplete) {
+  // Render success screen when signup is complete
+  if (showSuccessScreen) {
     return (
       <SafeAreaView style={styles.container} edges={['top']}>
-        <View style={styles.completionContainer}>
-          <Animated.View entering={FadeInDown.delay(100).duration(500)}>
-            <Text style={styles.completionTitle}>Check Your Email</Text>
+        <View style={styles.successContainer}>
+          <Animated.View 
+            entering={FadeInDown.delay(100).springify()}
+            style={styles.successIconContainer}
+          >
+            <View style={styles.successIconCircle}>
+              <Text style={styles.successCheckmark}>✓</Text>
+            </View>
           </Animated.View>
           
-          <Animated.View entering={FadeInDown.delay(200).duration(500)}>
-            <Text style={styles.completionText}>
-              We've sent a verification link to {email}. Please check your inbox and click the link to verify your account.
-            </Text>
-          </Animated.View>
+          <Animated.Text 
+            entering={FadeInDown.delay(200).springify()}
+            style={styles.successTitle}
+          >
+            Account Created!
+          </Animated.Text>
           
-          <Animated.View entering={FadeInDown.delay(300).duration(500)} style={styles.buttonContainer}>
+          <Animated.Text 
+            entering={FadeInDown.delay(300).springify()}
+            style={styles.successMessage}
+          >
+            We've sent a confirmation email to:
+          </Animated.Text>
+          
+          <Animated.Text 
+            entering={FadeInDown.delay(350).springify()}
+            style={styles.successEmail}
+          >
+            {successEmail}
+          </Animated.Text>
+          
+          <Animated.Text 
+            entering={FadeInDown.delay(400).springify()}
+            style={styles.successInstructions}
+          >
+            Please check your inbox and click the confirmation link to activate your account.
+          </Animated.Text>
+          
+          <Animated.View 
+            entering={FadeInDown.delay(500).springify()}
+            style={styles.successButtonContainer}
+          >
             <TouchableOpacity 
-              style={styles.signupButton}
-              onPress={() => router.replace('/(auth)/login')}
+              style={styles.successButton}
+              onPress={() => router.push('/(auth)/login')}
             >
-              <Text style={styles.signupButtonText}>Return to Login</Text>
+              <Text style={styles.successButtonText}>Go to Login</Text>
+              <ArrowRight size={20} color="#FFFFFF" />
             </TouchableOpacity>
           </Animated.View>
         </View>
@@ -302,7 +331,7 @@ export default function SignupScreen() {
                 secureTextEntry={!showPassword}
                 autoCapitalize="none"
                 returnKeyType="done"
-                onSubmitEditing={handleSignUp}
+                onSubmitEditing={handleSignup}
               />
               <TouchableOpacity 
                 style={styles.passwordToggle}
@@ -325,7 +354,7 @@ export default function SignupScreen() {
           >
             <TouchableOpacity 
               style={styles.signupButton}
-              onPress={handleSignUp}
+              onPress={handleSignup}
               disabled={isLoading}
             >
               {isLoading ? (
@@ -378,6 +407,86 @@ const styles = StyleSheet.create({
   scrollContent: {
     flexGrow: 1,
     padding: 20,
+  },
+  // Success screen styles
+  successContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: 24,
+  },
+  successIconContainer: {
+    marginBottom: 24,
+  },
+  successIconCircle: {
+    width: 80,
+    height: 80,
+    borderRadius: 40,
+    backgroundColor: '#10B981',
+    justifyContent: 'center',
+    alignItems: 'center',
+    shadowColor: '#10B981',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.2,
+    shadowRadius: 8,
+    elevation: 4,
+  },
+  successCheckmark: {
+    color: '#FFFFFF',
+    fontSize: 40,
+    fontWeight: 'bold',
+  },
+  successTitle: {
+    fontSize: 24,
+    fontFamily: 'Inter-Bold',
+    color: '#1F2937',
+    marginBottom: 16,
+    textAlign: 'center',
+  },
+  successMessage: {
+    fontSize: 16,
+    fontFamily: 'Inter-Regular',
+    color: '#6B7280',
+    textAlign: 'center',
+    marginBottom: 8,
+  },
+  successEmail: {
+    fontSize: 18,
+    fontFamily: 'Inter-SemiBold',
+    color: '#3B82F6',
+    textAlign: 'center',
+    marginBottom: 16,
+  },
+  successInstructions: {
+    fontSize: 16,
+    fontFamily: 'Inter-Regular',
+    color: '#6B7280',
+    textAlign: 'center',
+    marginBottom: 32,
+    lineHeight: 24,
+  },
+  successButtonContainer: {
+    width: '100%',
+    maxWidth: 300,
+  },
+  successButton: {
+    backgroundColor: '#3B82F6',
+    borderRadius: 12,
+    height: 56,
+    flexDirection: 'row',
+    justifyContent: 'center',
+    alignItems: 'center',
+    shadowColor: '#3B82F6',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.2,
+    shadowRadius: 8,
+    elevation: 4,
+  },
+  successButtonText: {
+    fontSize: 16,
+    fontFamily: 'Inter-Medium',
+    color: '#FFFFFF',
+    marginRight: 8,
   },
   headerContainer: {
     flexDirection: 'row',
@@ -560,25 +669,5 @@ const styles = StyleSheet.create({
     fontSize: 14,
     fontFamily: 'Inter-Medium',
     color: '#3B82F6',
-  },
-  completionContainer: {
-    flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-    padding: 24,
-  },
-  completionTitle: {
-    fontSize: 24,
-    fontFamily: 'Inter-Bold',
-    color: '#1F2937',
-    marginBottom: 16,
-    textAlign: 'center',
-  },
-  completionText: {
-    fontSize: 16,
-    fontFamily: 'Inter-Regular',
-    color: '#6B7280',
-    textAlign: 'center',
-    marginBottom: 32,
-  },
+  }
 });

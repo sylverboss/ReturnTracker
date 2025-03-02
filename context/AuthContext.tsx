@@ -1,14 +1,18 @@
 import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
-import { supabase, getCurrentUser, getCurrentSession, signUpUser } from '../lib/supabase';
+import { supabase, getCurrentUser, getCurrentSession } from '../lib/supabase';
 import { Session, User, AuthError } from '@supabase/supabase-js';
 import * as WebBrowser from 'expo-web-browser';
 import * as Google from 'expo-auth-session/providers/google';
 import { Platform } from 'react-native';
 import Constants from 'expo-constants';
+import { createLogger } from '../lib/logging';
 import { makeRedirectUri } from 'expo-auth-session';
 
 // Ensure web browser redirect is handled
 WebBrowser.maybeCompleteAuthSession();
+
+// Initialize logger
+const logger = createLogger('AuthContext');
 
 // Define user type
 interface AppUser {
@@ -29,7 +33,7 @@ interface AppUser {
 interface AuthContextType {
   user: AppUser | null;
   isLoading: boolean;
-  signUp: (email: string, password: string, displayName: string) => Promise<void>;
+  signUp: (email: string, password: string) => Promise<void>;
   signIn: (email: string, password: string) => Promise<void>;
   signInWithGoogle: () => Promise<any>;
   signOut: () => Promise<void>;
@@ -235,53 +239,60 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
   };
 
-  // Check if user's email is verified
-  const isEmailVerified = async (userId: string) => {
-    try {
-      const { data, error } = await supabase
-        .from('auth.users')
-        .select('email_confirmed_at')
-        .eq('id', userId)
-        .single();
-      
-      if (error) throw error;
-      
-      return data?.email_confirmed_at !== null;
-    } catch (error) {
-      console.error("Error checking email verification:", error);
-      return false;
-    }
-  };
-
   // Sign up function
-  const signUp = async (email: string, password: string, displayName: string = '') => {
-    console.log("Signing up user:", email);
+  const signUp = async (email: string, password: string) => {
+    logger.info("Signing up user:", email);
     setIsLoading(true);
     try {
       // Create user in Supabase Auth with email confirmation
+      logger.debug("Proceeding with signup");
+      // Create the redirect URL with query parameters to indicate confirmation
+      const redirectUrl = Platform.select({
+        web: typeof window !== 'undefined' 
+          ? `${window.location.origin}/(auth)/login?confirmed=true&email=${encodeURIComponent(email)}`
+          : undefined,
+        default: `com.returntrackr://login?confirmed=true&email=${encodeURIComponent(email)}`,
+      });
+      
+      logger.debug("Using email redirect URL:", redirectUrl);
+      
       const { data: authData, error: authError } = await supabase.auth.signUp({
         email,
         password,
         options: {
-          emailRedirectTo: Platform.OS === 'web' 
-            ? `${window.location.origin}/email-confirmed` 
-            : 'com.returntrackr://email-confirmed',
+          emailRedirectTo: redirectUrl,
           data: {
-            displayName: displayName || '',
-            profileCompleted: false
-          }
-        }
+            profileCompleted: false,
+          },
+        },
       });
 
+      logger.debug("Sign-up response:", authData ? "Data received" : "No data", 
+                 authError ? "Error received" : "No error");
+      
       if (authError) {
-        console.error("Auth error details:", authError);
+        logger.error("Supabase auth error:", authError);
         throw authError;
       }
 
-      console.log("Sign up successful");
+      if (authData?.user?.identities?.length === 0) {
+        // This means the user already exists but hasn't confirmed their email
+        throw new Error("This email is already registered but not confirmed. Please check your email for the confirmation link or try to sign in.");
+      }
+
+      // User created successfully, check if email confirmation is required
+      if (authData?.user && !authData.user.email_confirmed_at) {
+        logger.info("Sign up successful, email confirmation required");
+        // No alert here - will handle UI in the signup component
+      } else {
+        logger.info("Sign up successful, no email confirmation required");
+        // No alert here - will handle UI in the signup component
+      }
+      
       return authData;
     } catch (error) {
-      console.error("Sign up error:", error);
+      logger.error("Sign up error:", error);
+      setIsLoading(false);
       throw error;
     } finally {
       setIsLoading(false);

@@ -40,16 +40,31 @@ export default function PreSignupScreen() {
   
   const handleNext = () => {
     if (currentIndex < onboardingData.length - 1) {
-      flatListRef.current?.scrollToIndex({
-        index: currentIndex + 1,
-        animated: true,
+      // Move to the next slide
+      const nextIndex = currentIndex + 1;
+      
+      // Calculate exact pixel offset based on screen width
+      const offset = nextIndex * width;
+      
+      // Update state and animated values
+      setCurrentIndex(nextIndex);
+      progressValue.value = withTiming(nextIndex / (onboardingData.length - 1));
+      
+      // Scroll to exact position instead of using scrollToIndex
+      flatListRef.current?.scrollToOffset({
+        offset: offset,
+        animated: true
       });
+      
+      console.log(`Moving to slide ${nextIndex}, scroll position: ${offset}px`);
     } else {
+      // We're on the last slide, go to signup
       handleGetStarted();
     }
   };
 
   const handleGetStarted = () => {
+    console.log("Navigating to signup screen");
     router.push('/(auth)/signup');
   };
 
@@ -72,17 +87,19 @@ export default function PreSignupScreen() {
     const Icon = item.icon;
     
     return (
-      <View style={styles.slide}>
-        <LinearGradient
-          colors={item.colors}
-          style={styles.iconBackground}
-          start={{ x: 0, y: 0 }}
-          end={{ x: 1, y: 1 }}
-        >
-          <Icon size={80} color="#FFFFFF" />
-        </LinearGradient>
-        <Text style={styles.title}>{item.title}</Text>
-        <Text style={styles.description}>{item.description}</Text>
+      <View style={[styles.slide, { width }]}>
+        <View style={styles.slideContent}>
+          <LinearGradient
+            colors={item.colors}
+            style={styles.iconBackground}
+            start={{ x: 0, y: 0 }}
+            end={{ x: 1, y: 1 }}
+          >
+            <Icon size={80} color="#FFFFFF" />
+          </LinearGradient>
+          <Text style={styles.title}>{item.title}</Text>
+          <Text style={styles.description}>{item.description}</Text>
+        </View>
       </View>
     );
   };
@@ -107,6 +124,17 @@ export default function PreSignupScreen() {
         showsHorizontalScrollIndicator={false}
         onMomentumScrollEnd={handleScroll}
         keyExtractor={(item) => item.id}
+        getItemLayout={(data, index) => ({
+          length: width,
+          offset: width * index,
+          index,
+        })}
+        initialScrollIndex={0}
+        scrollEventThrottle={16}
+        decelerationRate="fast"
+        snapToInterval={width}
+        snapToAlignment="center"
+        contentContainerStyle={{ alignItems: 'center' }}
       />
 
       <View style={styles.footer}>
@@ -121,7 +149,10 @@ export default function PreSignupScreen() {
           >
             <TouchableOpacity 
               style={styles.skipButton}
-              onPress={handleGetStarted}
+              onPress={() => {
+                console.log("Skip to Sign Up pressed");
+                handleGetStarted();
+              }}
             >
               <Text style={styles.skipText}>Skip to Sign Up</Text>
             </TouchableOpacity>
@@ -162,10 +193,15 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   slide: {
-    width,
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  slideContent: {
     paddingHorizontal: 40,
     justifyContent: 'center',
     alignItems: 'center',
+    width: '100%',
   },
   iconBackground: {
     width: width * 0.5,

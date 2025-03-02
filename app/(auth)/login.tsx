@@ -17,10 +17,60 @@ export default function LoginScreen() {
   const [emailError, setEmailError] = useState('');
   const [passwordError, setPasswordError] = useState('');
   const [generalError, setGeneralError] = useState('');
+  const [showConfirmationSuccess, setShowConfirmationSuccess] = useState(false);
+  const [confirmedEmail, setConfirmedEmail] = useState('');
   
   const passwordRef = useRef<TextInput>(null);
   const { signIn, signInWithGoogle, user } = useAuth();
 
+  // Check for confirmed email or URL parameters
+  useEffect(() => {
+    const checkEmailConfirmation = async () => {
+      try {
+        // Check for URL parameters (web)
+        if (Platform.OS === 'web') {
+          const url = new URL(window.location.href);
+          const confirmedParam = url.searchParams.get('confirmed');
+          const emailParam = url.searchParams.get('email');
+          
+          if (confirmedParam === 'true' && emailParam) {
+            setShowConfirmationSuccess(true);
+            setConfirmedEmail(emailParam);
+            setEmail(emailParam);
+            return;
+          }
+        }
+        
+        // Check if we have email in router params (mobile)
+        if (router.params?.confirmed === 'true' && router.params?.email) {
+          setShowConfirmationSuccess(true);
+          setConfirmedEmail(router.params.email as string);
+          setEmail(router.params.email as string);
+          return;
+        }
+        
+        // Check if the current session is newly confirmed
+        const { data: { session } } = await supabase.auth.getSession();
+        if (session?.user?.email_confirmed_at) {
+          // If email was confirmed recently (within the last minute)
+          const confirmedAt = new Date(session.user.email_confirmed_at);
+          const now = new Date();
+          const diffInSeconds = (now.getTime() - confirmedAt.getTime()) / 1000;
+          
+          if (diffInSeconds < 60) {
+            setShowConfirmationSuccess(true);
+            setConfirmedEmail(session.user.email || '');
+            setEmail(session.user.email || '');
+          }
+        }
+      } catch (error) {
+        console.error("Error checking email confirmation:", error);
+      }
+    };
+    
+    checkEmailConfirmation();
+  }, []);
+  
   // Effect to handle successful authentication
   useEffect(() => {
     if (user) {
@@ -125,19 +175,6 @@ export default function LoginScreen() {
     }
   };
 
-  const handleSignUp = async () => {
-    const { error } = await supabase.auth.signUp({
-      email,
-      password,
-    });
-
-    if (error) {
-      console.error('Error signing up:', error.message);
-    } else {
-      alert('Check your email for the confirmation link.');
-    }
-  };
-
   return (
     <SafeAreaView style={styles.container} edges={['top']}>
       <KeyboardAvoidingView 
@@ -167,8 +204,24 @@ export default function LoginScreen() {
             <Text style={styles.subtitle}>Sign in to continue tracking your returns</Text>
           </Animated.View>
 
+          {/* Confirmation Success Message */}
+          {showConfirmationSuccess ? (
+            <Animated.View 
+              entering={FadeInDown.delay(125).springify()}
+              style={styles.confirmationContainer}
+            >
+              <View style={styles.confirmationIconContainer}>
+                <Text style={styles.confirmationIcon}>✓</Text>
+              </View>
+              <Text style={styles.confirmationTitle}>Email Confirmed!</Text>
+              <Text style={styles.confirmationText}>
+                Your account for <Text style={styles.confirmationEmail}>{confirmedEmail}</Text> has been successfully verified. Please sign in to continue.
+              </Text>
+            </Animated.View>
+          ) : null}
+
           {/* General Error Message */}
-          {generalError ? (
+          {generalError && !showConfirmationSuccess ? (
             <Animated.View 
               entering={FadeInDown.delay(125).springify()}
               style={styles.generalErrorContainer}
@@ -310,9 +363,11 @@ export default function LoginScreen() {
             style={styles.signupContainer}
           >
             <Text style={styles.signupText}>Don't have an account?</Text>
-            <TouchableOpacity onPress={handleSignUp}>
-              <Text style={styles.signupLink}>Sign Up</Text>
-            </TouchableOpacity>
+            <Link href="/(auth)/pre-signup" asChild>
+              <TouchableOpacity>
+                <Text style={styles.signupLink}>Sign Up</Text>
+              </TouchableOpacity>
+            </Link>
           </Animated.View>
         </ScrollView>
       </KeyboardAvoidingView>
@@ -324,6 +379,47 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: '#F9FAFB',
+  },
+  confirmationContainer: {
+    backgroundColor: '#ECFDF5',
+    borderRadius: 12,
+    padding: 16,
+    marginBottom: 20,
+    borderWidth: 1,
+    borderColor: '#D1FAE5',
+    alignItems: 'center',
+  },
+  confirmationIconContainer: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: '#10B981',
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginBottom: 10,
+  },
+  confirmationIcon: {
+    color: '#FFFFFF',
+    fontSize: 24,
+    fontWeight: 'bold',
+  },
+  confirmationTitle: {
+    fontSize: 18,
+    fontFamily: 'Inter-Bold',
+    color: '#065F46',
+    marginBottom: 8,
+    textAlign: 'center',
+  },
+  confirmationText: {
+    fontSize: 14,
+    fontFamily: 'Inter-Regular',
+    color: '#065F46',
+    textAlign: 'center',
+    lineHeight: 20,
+  },
+  confirmationEmail: {
+    fontFamily: 'Inter-SemiBold',
+    color: '#047857',
   },
   keyboardAvoidingView: {
     flex: 1,
