@@ -1,0 +1,72 @@
+{
+  "expo": {
+    "name": "ReturnTrackr",
+    "slug": "return-trackr",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "icon": "./assets/images/icon.png",
+    "scheme": "com.returntrackr",
+    "userInterfaceStyle": "automatic",
+    "newArchEnabled": true,
+    "extra": {
+      "eas": {
+        "projectId": "your-project-id"
+      }
+    },
+    "android": {
+      "package": "com.returntrackr",
+      "googleServicesFile": "./google-services.json",
+      "intentFilters": [
+        {
+          "action": "VIEW",
+          "autoVerify": true,
+          "data": [
+            {
+              "scheme": "com.returntrackr",
+              "host": "google-auth"
+            }
+          ],
+          "category": ["BROWSABLE", "DEFAULT"]
+        },
+        {
+          "action": "VIEW",
+          "data": [
+            {
+              "scheme": "com.returntrackr"
+            }
+          ],
+          "category": [
+            "BROWSABLE",
+            "DEFAULT"
+          ]
+        }
+      ]
+    },
+    "ios": {
+      "bundleIdentifier": "com.returntrackr",
+      "googleServicesFile": "./GoogleService-Info.plist",
+      "supportsTablet": true,
+      "associatedDomains": [
+        "applinks:yourapp.com"
+      ]
+    },
+    "web": {
+      "bundler": "metro",
+      "output": "single",
+      "favicon": "./assets/images/favicon.png"
+    },
+    "plugins": [
+      "expo-router",
+      [
+        "expo-auth-session",
+        {
+          "scheme": "com.returntrackr",
+          "providers": ["google"]
+        }
+      ]
+    ],
+    "experiments": {
+      "typedRoutes": true
+    }
+  }
+}
