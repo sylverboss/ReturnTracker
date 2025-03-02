@@ -243,20 +243,45 @@
 
 ## [Unreleased]
 ### Added
-- New sign-up flow requesting only email and password.
-- Profile completion page for first-time login after email confirmation.
-- Created AuthStateListener component to handle navigation after authentication.
+- **Profile Completion Flow**: Implemented a new profile completion page that allows users to enter their name and bio.
+- **User Metadata Update**: Added functionality to update user metadata in Supabase upon profile completion.
+- **Profile Upsert Logic**: Introduced logic to check for existing profiles and upsert data into the `profiles` table.
+- **Loading State Management**: Added loading state to the profile completion button to prevent multiple submissions.
 
 ### Changed
-- Updated Supabase auth logic to redirect to profile completion page.
-- Removed name field from sign-up page.
-- Moved navigation logic from supabase.ts to a proper React component.
-- Fixed issue with sign-up process where it was being interpreted as anonymous sign-in.
-- Updated AuthContext's signUp function to work without displayName parameter.
-- Enhanced profile completion page to create user profile in database.
-- Improved authentication flow to properly handle email confirmation.
-- Removed React Navigation in favor of Expo Router
-- Fixed authentication flow to work properly with Expo Router
-- Updated navigation logic in AuthStateListener to use Expo Router
-- Simplified App.tsx to use Expo Router's Slot component
-- Added proper auth layout configuration
+- **Redirect Logic**: Updated the redirect logic after profile completion to navigate users to the main application page (`/(tabs)`) instead of the onboarding carousel.
+- **Error Handling**: Improved error handling in the profile completion process with detailed console logging for better debugging.
+
+### Fixed
+- **Database Schema Issues**: Resolved issues related to missing columns in the `profiles` table, specifically the `bio` and `updated_at` columns.
+- **Profile Saving Errors**: Fixed errors related to saving profile data, ensuring that the application correctly handles the upsert operation in Supabase.
+
+### Confirmation Detection
+- Added code to detect if a user is arriving after confirming their email.
+- Checks multiple sources:
+  - URL parameters in web environments.
+  - Deep link parameters in mobile.
+  - Recent email confirmation in the Supabase session.
+
+### Visual Confirmation Feedback
+- Created a success message that appears at the top of the login screen.
+- Shows a green checkmark icon, success message, and the confirmed email address.
+- Styled with a green color scheme to indicate success.
+- Uses animations for a polished appearance.
+
+### Improved Redirect URLs
+- Updated the email confirmation redirect URLs to include query parameters.
+- Added `confirmed=true` and the user's email as parameters.
+- Configured for both web and mobile environments.
+- Uses proper URL encoding to handle special characters in email addresses.
+
+### Prefilled Login Form
+- Automatically fills in the email field after confirmation.
+- Makes it easier for users to complete the login process.
+
+### User Experience Enhancements
+- Streamlined the login process after email confirmation to eliminate confusion.
+- Clear visual feedback and a polished user experience throughout the authentication flow.
+
+## [Previous Versions]
+- [Version 1.0.0] - Initial release with basic authentication features.

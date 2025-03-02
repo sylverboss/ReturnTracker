@@ -17,11 +17,14 @@ export default function Index() {
 
   // If user is authenticated, redirect to the main app
   if (user) {
+    console.log("User is authenticated, redirecting...");
+    
     // Check if user has completed onboarding
     if (user.onboardingCompleted) {
       return <Redirect href="/(tabs)" />;
     } else {
-      return <Redirect href="/onboarding" />;
+      // Redirect to profile completion page instead of onboarding carousel
+      return <Redirect href="/profile-completion" />;
     }
   }
 

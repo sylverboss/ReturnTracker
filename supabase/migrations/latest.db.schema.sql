@@ -36,6 +36,7 @@ CREATE TYPE return_image_type AS ENUM ('receipt', 'product', 'label', 'qr_code',
     locale TEXT DEFAULT 'en-US',
     display_name TEXT,
     avatar_url TEXT,
+    bio TEXT,
     onboarding_completed BOOLEAN DEFAULT false
 );
 

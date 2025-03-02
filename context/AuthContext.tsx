@@ -171,9 +171,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         .eq('id', authUser.id)
         .single();
       
-      if (error && error.code !== 'PGRST116') {
+      if (error) {
         console.error("Error fetching profile:", error);
-        throw error;
+        throw error; // Ensure we throw the error to be caught below
       }
       
       if (profile) {
@@ -225,7 +225,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       }
     } catch (error) {
       console.error("Error in fetchUserProfile:", error);
-      throw error;
+      setIsLoading(false); // Ensure loading state is set to false on error
+      throw error; // Re-throw to handle it in the calling function
+    } finally {
+      setIsLoading(false); // Ensure loading state is set to false after the operation
     }
   };
 

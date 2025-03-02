@@ -2,64 +2,65 @@ import React, { useState } from 'react';
 import { View, Text, StyleSheet, TextInput, TouchableOpacity, SafeAreaView, Alert } from 'react-native';
 import { router } from 'expo-router';
 import { supabase } from '../lib/supabase';
+import { useAuth } from '../context/AuthContext';
 
 export default function ProfileCompletion() {
   const [name, setName] = useState('');
   const [bio, setBio] = useState('');
   const [isLoading, setIsLoading] = useState(false);
+  const { user } = useAuth(); // Get the current user from context
 
   const handleProfileCompletion = async () => {
     if (!name) {
       Alert.alert('Error', 'Please enter your name');
       return;
     }
-    
-    setIsLoading(true);
+
+    setIsLoading(true); // Set loading state to true
     try {
-      // Get current user
-      const { data: userData } = await supabase.auth.getUser();
-      if (!userData || !userData.user) {
-        throw new Error('No authenticated user found');
+      // Check if the user already has a profile
+      const { data: existingProfile, error: fetchError } = await supabase
+        .from('profiles')
+        .select('*')
+        .eq('id', user.id)
+        .single();
+
+      if (fetchError && fetchError.code !== 'PGRST116') {
+        console.error("Error fetching existing profile:", fetchError);
+        throw fetchError;
       }
-      
-      const user = userData.user;
-      
-      // Update user metadata
-      const { error: metadataError } = await supabase.auth.updateUser({
-        data: { 
-          name, 
-          bio, 
-          profileCompleted: true 
-        }
-      });
-      
-      if (metadataError) throw metadataError;
-      
-      // Create profile in profiles table
+
+      // Prepare profile data
+      const profileData = {
+        id: user.id,
+        email: user.email,
+        name: name,
+        display_name: name,
+        bio: bio,
+        onboarding_completed: true, // Mark onboarding as completed
+        is_premium: false,
+        language: 'en',
+        locale: 'en-US',
+        created_at: new Date().toISOString(),
+      };
+
+      // Upsert profile data
       const { error: profileError } = await supabase
         .from('profiles')
-        .insert({
-          id: user.id,
-          email: user.email,
-          name: name,
-          display_name: name,
-          bio: bio,
-          onboarding_completed: false,
-          is_premium: false,
-          language: 'en',
-          locale: 'en-US',
-          created_at: new Date().toISOString(),
-        });
-        
-      if (profileError) throw profileError;
-      
+        .upsert(profileData);
+
+      if (profileError) {
+        console.error("Error creating/updating profile:", profileError);
+        throw profileError;
+      }
+
       Alert.alert('Success', 'Profile completed successfully!');
-      router.replace('/onboarding');
+      router.replace('/(tabs)'); // Redirect to main page after saving
     } catch (error) {
       console.error('Error completing profile:', error);
       Alert.alert('Error', error.message || 'Failed to complete profile');
     } finally {
-      setIsLoading(false);
+      setIsLoading(false); // Reset loading state
     }
   };
 
