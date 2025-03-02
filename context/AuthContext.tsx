@@ -198,11 +198,16 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         const displayName = authUser.user_metadata?.full_name || null;
         const avatarUrl = authUser.user_metadata?.avatar_url || null;
         
+        // Ensure email is valid before inserting
+        if (!authUser.email) {
+          throw new Error("Email is required to create a profile.");
+        }
+
         const { error: insertError } = await supabase
           .from('profiles')
           .insert({
             id: authUser.id,
-            email: authUser.email || null,
+            email: authUser.email,
             name: displayName,
             display_name: displayName,
             avatar_url: avatarUrl,
@@ -217,25 +222,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           console.error("Error creating profile:", insertError);
           throw insertError;
         }
-        
-        setUser({
-          id: authUser.id,
-          email: authUser.email || null,
-          name: authUser.user_metadata?.full_name || null,
-          displayName: displayName,
-          onboardingCompleted: false,
-          photoURL: avatarUrl,
-          isPremium: false,
-          premiumExpiresAt: null,
-          preferences: {},
-          language: authUser.user_metadata?.language || 'en',
-          locale: authUser.user_metadata?.locale || 'en-US',
-        });
       }
     } catch (error) {
       console.error("Error in fetchUserProfile:", error);
-    } finally {
-      setIsLoading(false);
+      throw error;
     }
   };
 

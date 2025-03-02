@@ -233,3 +233,9 @@ All authentication forms include client-side validation:
 3. **Email Verification**: Require email verification before full access
 4. **Account Deletion**: Allow users to delete their accounts
 5. **Session Management**: Allow users to view and manage active sessions
+
+### Profile Creation
+- When creating a new user profile, ensure that:
+  - The email is not null or empty.
+  - The email format is valid.
+  - The email does not already exist in the profiles table.
