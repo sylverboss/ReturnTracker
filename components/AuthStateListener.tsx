@@ -13,19 +13,36 @@ export function AuthStateListener() {
         console.log("User signed in:", user);
         
         if (user) {
-          // Check if user has a profile in the profiles table
-          const { data: profile, error } = await supabase
-            .from('profiles')
-            .select('*')
-            .eq('id', user.user.id)
-            .single();
+          try {
+            // Check if user has a profile in the profiles table
+            const { data: profile, error } = await supabase
+              .from('profiles')
+              .select('id, onboarding_completed')
+              .eq('id', user.user.id)
+              .single();
             
-          console.log("Profile check result:", profile, error);
-          
-          if (!profile || error) {
-            // No profile exists yet, direct to profile completion
-            console.log("Navigating to profile completion");
-            router.replace('/profile-completion');
+            // If error is because no rows were found, it means
+            // the profile doesn't exist yet
+            if (error && error.code === 'PGRST116') {
+              console.log("No profile exists yet, navigating to profile completion");
+              router.replace('/profile-completion');
+              return;
+            }
+            
+            // If we get here, a profile exists
+            console.log("Profile check result:", profile);
+            
+            if (profile && !profile.onboarding_completed) {
+              // Profile exists but onboarding not completed
+              console.log("Profile exists but onboarding not completed");
+              router.replace('/profile-completion');
+            } else if (profile && profile.onboarding_completed) {
+              // Profile exists and onboarding completed
+              console.log("Profile exists and onboarding completed");
+              router.replace('/(tabs)');
+            }
+          } catch (error) {
+            console.error("Error checking profile:", error);
           }
         }
       }
@@ -37,4 +54,4 @@ export function AuthStateListener() {
   }, []);
 
   return null;
-} 
+}

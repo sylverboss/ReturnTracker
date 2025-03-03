@@ -15,21 +15,9 @@ export default function ProfileCompletion() {
       Alert.alert('Error', 'Please enter your name');
       return;
     }
-
+  
     setIsLoading(true); // Set loading state to true
     try {
-      // Check if the user already has a profile
-      const { data: existingProfile, error: fetchError } = await supabase
-        .from('profiles')
-        .select('*')
-        .eq('id', user.id)
-        .single();
-
-      if (fetchError && fetchError.code !== 'PGRST116') {
-        console.error("Error fetching existing profile:", fetchError);
-        throw fetchError;
-      }
-
       // Prepare profile data
       const profileData = {
         id: user.id,
@@ -43,17 +31,25 @@ export default function ProfileCompletion() {
         locale: 'en-US',
         created_at: new Date().toISOString(),
       };
-
-      // Upsert profile data
+  
+      // Insert profile data (no need to check if it exists first, use upsert)
       const { error: profileError } = await supabase
         .from('profiles')
         .upsert(profileData);
-
+  
       if (profileError) {
-        console.error("Error creating/updating profile:", profileError);
+        console.error("Error creating profile:", profileError);
         throw profileError;
       }
-
+  
+      // Update the user context
+      try {
+        await completeOnboarding();
+      } catch (error) {
+        console.warn("Error updating onboarding status in context:", error);
+        // Continue anyway, we can still redirect the user
+      }
+  
       Alert.alert('Success', 'Profile completed successfully!');
       router.replace('/(tabs)'); // Redirect to main page after saving
     } catch (error) {

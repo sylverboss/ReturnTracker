@@ -7,6 +7,7 @@ import { LinearGradient } from 'expo-linear-gradient';
 import { Eye, EyeOff, ArrowRight, Mail, Lock, LogIn } from 'lucide-react-native';
 import { useAuth } from '../../context/AuthContext';
 import { supabase } from '../../lib/supabase';
+import { useRouter } from 'expo-router';
 
 export default function LoginScreen() {
   const [email, setEmail] = useState('');
@@ -22,54 +23,62 @@ export default function LoginScreen() {
   
   const passwordRef = useRef<TextInput>(null);
   const { signIn, signInWithGoogle, user } = useAuth();
+  const router = useRouter();
 
   // Check for confirmed email or URL parameters
-  useEffect(() => {
-    const checkEmailConfirmation = async () => {
-      try {
-        // Check for URL parameters (web)
-        if (Platform.OS === 'web') {
-          const url = new URL(window.location.href);
-          const confirmedParam = url.searchParams.get('confirmed');
-          const emailParam = url.searchParams.get('email');
+ // Check for confirmed email or URL parameters
+useEffect(() => {
+  const checkEmailConfirmation = async () => {
+    try {
+      // Check for URL parameters (web)
+      if (Platform.OS === 'web') {
+        const url = new URL(window.location.href);
+        const confirmedParam = url.searchParams.get('confirmed');
+        const emailParam = url.searchParams.get('email');
+        
+        if (confirmedParam === 'true' && emailParam) {
+          setShowConfirmationSuccess(true);
+          setConfirmedEmail(emailParam);
+          setEmail(emailParam);
           
-          if (confirmedParam === 'true' && emailParam) {
-            setShowConfirmationSuccess(true);
-            setConfirmedEmail(emailParam);
-            setEmail(emailParam);
+          // Auto-login after confirmation if we have the email
+          if (emailParam) {
+            // Don't auto-redirect here - let the AuthStateListener handle it
+            // after successful login
             return;
           }
         }
-        
-        // Check if we have email in router params (mobile)
-        if (router.params?.confirmed === 'true' && router.params?.email) {
-          setShowConfirmationSuccess(true);
-          setConfirmedEmail(router.params.email as string);
-          setEmail(router.params.email as string);
-          return;
-        }
-        
-        // Check if the current session is newly confirmed
-        const { data: { session } } = await supabase.auth.getSession();
-        if (session?.user?.email_confirmed_at) {
-          // If email was confirmed recently (within the last minute)
-          const confirmedAt = new Date(session.user.email_confirmed_at);
-          const now = new Date();
-          const diffInSeconds = (now.getTime() - confirmedAt.getTime()) / 1000;
-          
-          if (diffInSeconds < 60) {
-            setShowConfirmationSuccess(true);
-            setConfirmedEmail(session.user.email || '');
-            setEmail(session.user.email || '');
-          }
-        }
-      } catch (error) {
-        console.error("Error checking email confirmation:", error);
       }
-    };
-    
-    checkEmailConfirmation();
-  }, []);
+      
+      // Check if we have email in router params (mobile)
+      if (router.params?.confirmed === 'true' && router.params?.email) {
+        setShowConfirmationSuccess(true);
+        setConfirmedEmail(router.params.email as string);
+        setEmail(router.params.email as string);
+        return;
+      }
+      
+      // Check if the current session is newly confirmed
+      const { data: { session } } = await supabase.auth.getSession();
+      if (session?.user?.email_confirmed_at) {
+        // If email was confirmed recently (within the last minute)
+        const confirmedAt = new Date(session.user.email_confirmed_at);
+        const now = new Date();
+        const diffInSeconds = (now.getTime() - confirmedAt.getTime()) / 1000;
+        
+        if (diffInSeconds < 60) {
+          setShowConfirmationSuccess(true);
+          setConfirmedEmail(session.user.email || '');
+          setEmail(session.user.email || '');
+        }
+      }
+    } catch (error) {
+      console.error("Error checking email confirmation:", error);
+    }
+  };
+  
+  checkEmailConfirmation();
+}, []);
   
   // Effect to handle successful authentication
   useEffect(() => {
@@ -132,11 +141,11 @@ export default function LoginScreen() {
     
     const isEmailValid = validateEmail(email);
     const isPasswordValid = validatePassword(password);
-
+  
     if (!isEmailValid || !isPasswordValid) {
       return;
     }
-
+  
     setIsLoading(true);
     try {
       console.log("Attempting to sign in with email and password");
@@ -145,6 +154,16 @@ export default function LoginScreen() {
       // Navigation is handled by the useEffect hook that watches the user state
     } catch (error) {
       console.error("Login error:", error);
+      
+      // Special handling for the profile error we're seeing
+      if (error.code === 'PGRST116') {
+        // This means authentication succeeded but profile fetch failed
+        // This is actually expected for new users
+        console.log("User authenticated but no profile - this is normal for new users");
+        // AuthStateListener will handle the redirect, so we can just return
+        return;
+      }
+      
       const errorMessage = getErrorMessage(error);
       setGeneralError(errorMessage);
       setIsLoading(false);

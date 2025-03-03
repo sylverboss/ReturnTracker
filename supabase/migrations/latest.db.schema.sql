@@ -37,6 +37,7 @@ CREATE TYPE return_image_type AS ENUM ('receipt', 'product', 'label', 'qr_code',
     display_name TEXT,
     avatar_url TEXT,
     bio TEXT,
+    updated_at TIMESTAMPTZ DEFAULT NOW();
     onboarding_completed BOOLEAN DEFAULT false
 );
 
@@ -368,6 +369,3 @@ CREATE POLICY "Translations are viewable by authenticated users"
   FOR SELECT
   TO authenticated
   USING (true);
-
-
-

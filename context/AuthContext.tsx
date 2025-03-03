@@ -160,77 +160,65 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, []);
   
   // Fetch user profile from Supabase
-  const fetchUserProfile = async (authUser: User) => {
-    try {
-      console.log("Fetching user profile for:", authUser.id);
-      
-      // Get user profile from profiles table
-      const { data: profile, error } = await supabase
-        .from('profiles')
-        .select('*')
-        .eq('id', authUser.id)
-        .single();
-      
-      if (error) {
-        console.error("Error fetching profile:", error);
-        throw error; // Ensure we throw the error to be caught below
-      }
-      
-      if (profile) {
-        // Profile exists, use it
-        console.log("User profile found:", profile);
+const fetchUserProfile = async (authUser: User) => {
+  try {
+    console.log("Fetching user profile for:", authUser.id);
+    
+    // Get user profile from profiles table
+    const { data: profile, error } = await supabase
+      .from('profiles')
+      .select('*')
+      .eq('id', authUser.id)
+      .single();
+    
+    // Check if the error is just "no rows found" (profile doesn't exist yet)
+    if (error) {
+      if (error.code === 'PGRST116') {
+        // This is expected for new users, set user with minimal data
+        // and let profile completion handle the rest
+        console.log("No profile found for user, will redirect to profile completion");
         setUser({
           id: authUser.id,
           email: authUser.email || null,
-          name: profile.name || null,
-          displayName: profile.display_name || null,
-          onboardingCompleted: profile.onboarding_completed || false,
-          photoURL: profile.avatar_url || null,
-          isPremium: profile.is_premium || false,
-          premiumExpiresAt: profile.premium_expires_at || null,
-          preferences: profile.preferences || {},
-          language: profile.language || 'en',
-          locale: profile.locale || 'en-US'
+          name: null,
+          displayName: null,
+          onboardingCompleted: false,
+          photoURL: null,
+          isPremium: false,
+          language: 'en',
+          locale: 'en-US',
+          preferences: {}
         });
       } else {
-        // No profile, create one with default values
-        console.log("Creating new user profile");
-        const displayName = authUser.user_metadata?.full_name || null;
-        const avatarUrl = authUser.user_metadata?.avatar_url || null;
-        
-        // Ensure email is valid before inserting
-        if (!authUser.email) {
-          throw new Error("Email is required to create a profile.");
-        }
-
-        const { error: insertError } = await supabase
-          .from('profiles')
-          .insert({
-            id: authUser.id,
-            email: authUser.email,
-            name: displayName,
-            display_name: displayName,
-            avatar_url: avatarUrl,
-            onboarding_completed: false,
-            is_premium: false,
-            language: 'en',
-            locale: 'en-US',
-            created_at: new Date().toISOString(),
-          });
-        
-        if (insertError) {
-          console.error("Error creating profile:", insertError);
-          throw insertError;
-        }
+        // This is an unexpected error
+        console.error("Error fetching profile:", error);
+        throw error;
       }
-    } catch (error) {
-      console.error("Error in fetchUserProfile:", error);
-      setIsLoading(false); // Ensure loading state is set to false on error
-      throw error; // Re-throw to handle it in the calling function
-    } finally {
-      setIsLoading(false); // Ensure loading state is set to false after the operation
+    } else if (profile) {
+      // Profile exists, use it
+      console.log("User profile found:", profile);
+      setUser({
+        id: authUser.id,
+        email: authUser.email || null,
+        name: profile.name || null,
+        displayName: profile.display_name || null,
+        onboardingCompleted: profile.onboarding_completed || false,
+        photoURL: profile.avatar_url || null,
+        isPremium: profile.is_premium || false,
+        premiumExpiresAt: profile.premium_expires_at || null,
+        preferences: profile.preferences || {},
+        language: profile.language || 'en',
+        locale: profile.locale || 'en-US'
+      });
     }
-  };
+  } catch (error) {
+    console.error("Error in fetchUserProfile:", error);
+    setIsLoading(false);
+    throw error;
+  } finally {
+    setIsLoading(false);
+  }
+};
 
   // Sign up function
   const signUp = async (email: string, password: string) => {
