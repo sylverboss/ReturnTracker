@@ -1,0 +1,188 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ReturnTrackr Auth Redirect</title>
+    <style>
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, 'Open Sans', 'Helvetica Neue', sans-serif;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            height: 100vh;
+            margin: 0;
+            padding: 20px;
+            text-align: center;
+            background-color: #f9fafb;
+            color: #1f2937;
+        }
+        .logo {
+            width: 100px;
+            height: 100px;
+            margin-bottom: 20px;
+        }
+        .card {
+            background-color: white;
+            border-radius: 12px;
+            padding: 30px;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+            max-width: 500px;
+            width: 100%;
+        }
+        h1 {
+            font-size: 24px;
+            margin-bottom: 16px;
+        }
+        p {
+            font-size: 16px;
+            color: #6b7280;
+            margin-bottom: 24px;
+            line-height: 1.5;
+        }
+        button {
+            background-color: #3b82f6;
+            color: white;
+            border: none;
+            border-radius: 8px;
+            padding: 12px 24px;
+            font-size: 16px;
+            font-weight: 500;
+            cursor: pointer;
+            transition: background-color 0.2s;
+        }
+        button:hover {
+            background-color: #2563eb;
+        }
+        .hidden {
+            display: none;
+        }
+        #countdown {
+            font-weight: bold;
+        }
+        .manual-link {
+            margin-top: 20px;
+            word-break: break-all;
+            background-color: #f3f4f6;
+            padding: 10px;
+            border-radius: 6px;
+            font-family: monospace;
+        }
+    </style>
+</head>
+<body>
+    <div class="card">
+        <h1>ReturnTrackr Authentication</h1>
+        <p id="statusMessage">Processing your authentication request...</p>
+        <button id="openAppButton" class="hidden">Open App</button>
+        <div id="manualOpenContainer" class="hidden">
+            <p>If the app doesn't open automatically, copy and paste this link in your mobile browser:</p>
+            <div id="manualLink" class="manual-link"></div>
+        </div>
+        <p id="redirectMessage" class="hidden">Redirecting to app in <span id="countdown">5</span> seconds...</p>
+    </div>
+
+    <script>
+        // Parse the URL parameters
+        const urlParams = new URLSearchParams(window.location.search);
+        const token = urlParams.get('token');
+        const type = urlParams.get('type');
+        const redirectTo = urlParams.get('redirect_to');
+
+        // Extract email from the redirect_to parameter if available
+        let email = '';
+        if (redirectTo) {
+            const redirectParams = new URLSearchParams(redirectTo.split('?')[1] || '');
+            email = redirectParams.get('email') || '';
+        }
+
+        // Create the app deep link
+        const createAppLink = () => {
+            // Base app URL
+            let appLink = 'com.returntrackr://';
+            
+            // Add path based on auth type
+            if (type === 'signup') {
+                appLink += 'login?confirmed=true';
+                if (email) {
+                    appLink += `&email=${encodeURIComponent(email)}`;
+                }
+            } else if (type === 'recovery') {
+                appLink += `forgot-password?token=${encodeURIComponent(token)}`;
+            } else if (token && type) {
+                appLink += `login?token=${encodeURIComponent(token)}&type=${encodeURIComponent(type)}`;
+            }
+            
+            return appLink;
+        };
+
+        // Create the development Expo link for testing
+        const createExpoLink = () => {
+            // Base expo development URL - update with your actual IP address
+            let expoLink = 'exp://192.168.1.5:8081/--/';
+            
+            // Add path based on auth type
+            if (type === 'signup') {
+                expoLink += '(auth)/login?confirmed=true';
+                if (email) {
+                    expoLink += `&email=${encodeURIComponent(email)}`;
+                }
+            } else if (type === 'recovery') {
+                expoLink += `(auth)/forgot-password?token=${encodeURIComponent(token)}`;
+            } else if (token && type) {
+                expoLink += `(auth)/login?token=${encodeURIComponent(token)}&type=${encodeURIComponent(type)}`;
+            }
+            
+            return expoLink;
+        };
+
+        // Handle opening the app
+        const openApp = () => {
+            const appLink = createAppLink();
+            const expoLink = createExpoLink();
+            
+            // For development, we can use the Expo link
+            const linkToOpen = expoLink; // Use appLink for production
+            
+            // Update UI
+            document.getElementById('statusMessage').textContent = 'Opening ReturnTrackr app...';
+            document.getElementById('manualLink').textContent = linkToOpen;
+            document.getElementById('manualOpenContainer').classList.remove('hidden');
+            
+            // Try to open the app
+            window.location.href = linkToOpen;
+        };
+
+        // Initialize the page
+        window.onload = () => {
+            const openAppButton = document.getElementById('openAppButton');
+            
+            if (token && type) {
+                // We have valid auth parameters
+                openAppButton.classList.remove('hidden');
+                openAppButton.addEventListener('click', openApp);
+                document.getElementById('statusMessage').textContent = 'Your authentication is ready to process.';
+                
+                // Start countdown
+                let countdown = 5;
+                document.getElementById('countdown').textContent = countdown;
+                document.getElementById('redirectMessage').classList.remove('hidden');
+                
+                const interval = setInterval(() => {
+                    countdown--;
+                    document.getElementById('countdown').textContent = countdown;
+                    
+                    if (countdown <= 0) {
+                        clearInterval(interval);
+                        openApp();
+                    }
+                }, 1000);
+            } else {
+                // Missing required parameters
+                document.getElementById('statusMessage').textContent = 'Invalid authentication link. Please try again or contact support.';
+            }
+        };
+    </script>
+</body>
+</html>

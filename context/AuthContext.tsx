@@ -42,6 +42,47 @@ interface AuthContextType {
   completeOnboarding: () => Promise<void>;
 }
 
+// Platform-specific utilities
+const platformUtils = {
+  // Get redirect URL for authentication
+  getAuthRedirectUrl: (path: string, params: Record<string, string> = {}) => {
+    // Build query string from params
+    const queryString = Object.entries(params)
+      .map(([key, value]) => `${encodeURIComponent(key)}=${encodeURIComponent(value)}`)
+      .join('&');
+    
+    const queryPart = queryString ? `?${queryString}` : '';
+    
+    if (Platform.OS === 'web') {
+      // For web platform
+      try {
+        return `${window.location.origin}/${path}${queryPart}`;
+      } catch (error) {
+        logger.error("Error creating web redirect URL:", error);
+        // Fallback to a default URL if window.location is not available
+        return `https://returntrackr.app/${path}${queryPart}`;
+      }
+    } else {
+      // For native platforms
+      return `com.returntrackr://${path}${queryPart}`;
+    }
+  },
+  
+  // Get reset password redirect URL
+  getPasswordResetRedirectUrl: () => {
+    if (Platform.OS === 'web') {
+      try {
+        return `${window.location.origin}/reset-password`;
+      } catch (error) {
+        logger.error("Error creating password reset URL:", error);
+        return `https://returntrackr.app/reset-password`;
+      }
+    } else {
+      return `com.returntrackr://reset-password`;
+    }
+  }
+};
+
 // Create context
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
@@ -50,11 +91,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<AppUser | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [session, setSession] = useState<Session | null>(null);
-
-  // Get environment variables for Google Auth
-  const webClientId = process.env.EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID || '';
-  const iosClientId = process.env.EXPO_PUBLIC_GOOGLE_IOS_CLIENT_ID || '';
-  const androidClientId = process.env.EXPO_PUBLIC_GOOGLE_ANDROID_CLIENT_ID || '';
 
   // Google Auth configuration
   const [request, response, promptAsync] = Google.useIdTokenAuthRequest({
@@ -160,79 +196,75 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, []);
   
   // Fetch user profile from Supabase
-const fetchUserProfile = async (authUser: User) => {
-  try {
-    console.log("Fetching user profile for:", authUser.id);
-    
-    // Get user profile from profiles table
-    const { data: profile, error } = await supabase
-      .from('profiles')
-      .select('*')
-      .eq('id', authUser.id)
-      .single();
-    
-    // Check if the error is just "no rows found" (profile doesn't exist yet)
-    if (error) {
-      if (error.code === 'PGRST116') {
-        // This is expected for new users, set user with minimal data
-        // and let profile completion handle the rest
-        console.log("No profile found for user, will redirect to profile completion");
+  const fetchUserProfile = async (authUser: User) => {
+    try {
+      console.log("Fetching user profile for:", authUser.id);
+      
+      // Get user profile from profiles table
+      const { data: profile, error } = await supabase
+        .from('profiles')
+        .select('*')
+        .eq('id', authUser.id)
+        .single();
+      
+      // Check if the error is just "no rows found" (profile doesn't exist yet)
+      if (error) {
+        if (error.code === 'PGRST116') {
+          // This is expected for new users, set user with minimal data
+          // and let profile completion handle the rest
+          console.log("No profile found for user, will redirect to profile completion");
+          setUser({
+            id: authUser.id,
+            email: authUser.email || null,
+            name: null,
+            displayName: null,
+            onboardingCompleted: false,
+            photoURL: null,
+            isPremium: false,
+            language: 'en',
+            locale: 'en-US',
+            preferences: {}
+          });
+        } else {
+          // This is an unexpected error
+          console.error("Error fetching profile:", error);
+          throw error;
+        }
+      } else if (profile) {
+        // Profile exists, use it
+        console.log("User profile found:", profile);
         setUser({
           id: authUser.id,
           email: authUser.email || null,
-          name: null,
-          displayName: null,
-          onboardingCompleted: false,
-          photoURL: null,
-          isPremium: false,
-          language: 'en',
-          locale: 'en-US',
-          preferences: {}
+          name: profile.name || null,
+          displayName: profile.display_name || null,
+          onboardingCompleted: profile.onboarding_completed || false,
+          photoURL: profile.avatar_url || null,
+          isPremium: profile.is_premium || false,
+          premiumExpiresAt: profile.premium_expires_at || null,
+          preferences: profile.preferences || {},
+          language: profile.language || 'en',
+          locale: profile.locale || 'en-US'
         });
-      } else {
-        // This is an unexpected error
-        console.error("Error fetching profile:", error);
-        throw error;
       }
-    } else if (profile) {
-      // Profile exists, use it
-      console.log("User profile found:", profile);
-      setUser({
-        id: authUser.id,
-        email: authUser.email || null,
-        name: profile.name || null,
-        displayName: profile.display_name || null,
-        onboardingCompleted: profile.onboarding_completed || false,
-        photoURL: profile.avatar_url || null,
-        isPremium: profile.is_premium || false,
-        premiumExpiresAt: profile.premium_expires_at || null,
-        preferences: profile.preferences || {},
-        language: profile.language || 'en',
-        locale: profile.locale || 'en-US'
-      });
+    } catch (error) {
+      console.error("Error in fetchUserProfile:", error);
+      setIsLoading(false);
+      throw error;
+    } finally {
+      setIsLoading(false);
     }
-  } catch (error) {
-    console.error("Error in fetchUserProfile:", error);
-    setIsLoading(false);
-    throw error;
-  } finally {
-    setIsLoading(false);
-  }
-};
+  };
 
   // Sign up function
   const signUp = async (email: string, password: string) => {
     logger.info("Signing up user:", email);
     setIsLoading(true);
     try {
-      // Create user in Supabase Auth with email confirmation
-      logger.debug("Proceeding with signup");
       // Create the redirect URL with query parameters to indicate confirmation
-      const redirectUrl = Platform.select({
-        web: typeof window !== 'undefined' 
-          ? `${window.location.origin}/(auth)/login?confirmed=true&email=${encodeURIComponent(email)}`
-          : undefined,
-        default: `com.returntrackr://login?confirmed=true&email=${encodeURIComponent(email)}`,
+      const redirectUrl = platformUtils.getAuthRedirectUrl('(auth)/login', {
+        confirmed: 'true',
+        email: email
       });
       
       logger.debug("Using email redirect URL:", redirectUrl);
@@ -310,25 +342,25 @@ const fetchUserProfile = async (authUser: User) => {
 
     try {
       console.log("Initiating Google sign-in");
-      const { type, params } = await promptAsync();
+      setIsLoading(true);
+      const result = await promptAsync();
       
-      if (type === 'success') {
-        const { id_token } = params;
-        const { data, error } = await supabase.auth.signInWithIdToken({
-          provider: 'google',
-          token: id_token,
-        });
-        
-        if (error) throw error;
-        return data;
-      } else if (type === 'dismiss') {
+      if (result.type === 'success') {
+        console.log('Google sign-in successful, proceeding with token');
+        // The auth state change listener will handle the session
+        return result;
+      } else if (result.type === 'dismiss') {
         console.log('User cancelled Google sign-in');
+        setIsLoading(false);
         return null;
       } else {
-        throw new Error(`Google sign-in failed: ${type}`);
+        console.error('Google sign-in failed:', result.type);
+        setIsLoading(false);
+        throw new Error(`Google sign-in failed: ${result.type}`);
       }
     } catch (error) {
       console.error('Error initiating Google sign-in:', error);
+      setIsLoading(false);
       throw error;
     }
   };
@@ -354,8 +386,10 @@ const fetchUserProfile = async (authUser: User) => {
   const resetPassword = async (email: string) => {
     try {
       console.log("Sending password reset email to:", email);
+      const redirectTo = platformUtils.getPasswordResetRedirectUrl();
+      
       const { error } = await supabase.auth.resetPasswordForEmail(email, {
-        redirectTo: `${window.location.origin}/reset-password`,
+        redirectTo,
       });
       
       if (error) throw error;

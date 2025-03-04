@@ -98,3 +98,29 @@ The app uses the Inter font family with the following weights:
 - Social sharing features for referral program
 - Enhanced analytics with spending patterns
 - Calendar integration for deadline visualization
+====
+
+
+# Test basic deep link with custom scheme
+adb shell am start -a android.intent.action.VIEW -d "com.returntrackr://login" com.returntrackr
+
+# Test deep link with parameters
+adb shell am start -a android.intent.action.VIEW -d "com.returntrackr://login?confirmed=true&email=user@example.com" com.returntrackr
+
+# Test HTTPS link (for Android App Links) - replace with your Supabase URL
+adb shell am start -a android.intent.action.VIEW -d "https://orlbgscpjczraksivjrg.supabase.co/auth/v1/verify?token=YOUR_TOKEN&type=signup" com.returntrackr
+
+# Test HTTP localhost link (for development)
+adb shell am start -a android.intent.action.VIEW -d "http://localhost:8081/(auth)/login?confirmed=true" com.returntrackr
+
+# Check installed intent filters (debugging)
+adb shell dumpsys package com.returntrackr | grep -A 20 "Intent filters"
+
+# Verify App Links are working (Android 6.0+)
+adb shell pm get-app-links com.returntrackr
+
+# Launch browser and navigate to a URL that should trigger App Links
+adb shell am start -a android.intent.action.VIEW -d "https://orlbgscpjczraksivjrg.supabase.co/auth/v1/verify?token=TOKEN&type=signup"
+
+# Clearing App Links verification (if needed for fresh testing)
+adb shell cmd package verify-app-links --reset com.returntrackr

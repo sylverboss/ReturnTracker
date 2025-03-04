@@ -1,15 +1,23 @@
 import { useCallback, useEffect, useState } from 'react';
-import { Stack } from 'expo-router';
+import { Stack, useRouter, useSegments } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { useFonts } from 'expo-font';
 import * as SplashScreen from 'expo-splash-screen';
 import { Asset } from 'expo-asset';
-import { Image, View } from 'react-native';
+import { Image, Linking, View } from 'react-native';
 import { IconProvider } from '../components/IconProvider';
 import CustomSplashScreen from '../components/SplashScreen';
 import { AuthProvider } from '../context/AuthContext';
+import { supabase } from '../lib/supabase';
+import { useAuth } from '../context/AuthContext';
+import { createLogger } from '../lib/logging';
+import { handleAuthLink } from './middleware/auth-link-handler';
+import DeepLinkDebugTool from '../components/DeepLinkDebugTool';
+
+// Initialize logger
+const logger = createLogger('RootLayout');
 
 // Keep the splash screen visible while we fetch resources
 SplashScreen.preventAutoHideAsync();
@@ -37,6 +45,100 @@ declare global {
   interface Window {
     frameworkReady?: () => void;
   }
+}
+
+// Main layout component
+function MainLayout() {
+  const { user, isLoading } = useAuth();
+  const segments = useSegments();
+  const router = useRouter();
+
+  // Handle deep links for authentication
+  useEffect(() => {
+    // Define the URL handler function
+    const handleURL = async (event: { url: string }) => {
+      const url = event.url;
+      logger.info('Received deep link URL:', url);
+      
+      try {
+        // Use the flexible auth link handler
+        const wasHandled = await handleAuthLink(url);
+        
+        if (!wasHandled) {
+          // If the URL wasn't handled as an auth link, you can handle other deep links here
+          logger.info('URL not handled as auth link, checking for other deep link types');
+          
+          // Example: Handle other types of deep links
+          if (url.includes('product/')) {
+            const productId = url.split('product/')[1]?.split(/[?#]/)[0];
+            if (productId) {
+              router.push(`/product/${productId}`);
+            }
+          }
+        }
+      } catch (error) {
+        logger.error('Error processing URL:', error);
+      }
+    };
+
+    // Add event listener for deep links
+    const subscription = Linking.addEventListener('url', handleURL);
+
+    // Check for initial URL (app opened via deep link)
+    Linking.getInitialURL().then((url) => {
+      if (url) {
+        logger.info('App opened with URL:', url);
+        handleURL({ url });
+      }
+    });
+
+    return () => {
+      subscription.remove();
+    };
+  }, [router]);
+
+  // Protected route logic
+  useEffect(() => {
+    if (isLoading) return;
+
+    const inAuthGroup = segments[0] === '(auth)';
+    const inOnboardingGroup = segments[0] === 'onboarding';
+
+    if (!user && !inAuthGroup && segments[0] !== undefined) {
+      // If no user and not in auth group, redirect to login
+      router.replace('/(auth)/login');
+    } else if (user && !user.onboardingCompleted && !inOnboardingGroup && !inAuthGroup) {
+      // If user needs to complete onboarding
+      router.replace('/onboarding');
+    } else if (user && inAuthGroup) {
+      // If user is authenticated but in auth group, redirect to main app
+      router.replace('/(tabs)');
+    }
+  }, [user, segments, isLoading, router]);
+
+  return (
+    <IconProvider>
+      <SafeAreaProvider>
+        <GestureHandlerRootView style={{ flex: 1 }}>
+          <Stack screenOptions={{ headerShown: false }}>
+            <Stack.Screen name="index" />
+            <Stack.Screen name="(auth)" options={{ animation: 'fade' }} />
+            <Stack.Screen name="(tabs)" />
+            <Stack.Screen name="onboarding" options={{ animation: 'slide_from_right', gestureEnabled: false }} />
+            <Stack.Screen name="add-return" options={{ presentation: 'modal' }} />
+            <Stack.Screen name="return-details" options={{ animation: 'slide_from_right' }} />
+            <Stack.Screen name="return-instructions" options={{ animation: 'slide_from_right' }} />
+            <Stack.Screen name="return-processing" options={{ animation: 'slide_from_right' }} />
+            <Stack.Screen name="+not-found" />
+          </Stack>
+          <StatusBar style="auto" />
+          
+          {/* Add the deep link debug tool in development */}
+          {process.env.NODE_ENV !== 'production' && <DeepLinkDebugTool />}
+        </GestureHandlerRootView>
+      </SafeAreaProvider>
+    </IconProvider>
+  );
 }
 
 export default function RootLayout() {
@@ -91,24 +193,7 @@ export default function RootLayout() {
   // with system fonts as fallback
   return (
     <AuthProvider>
-      <IconProvider>
-        <SafeAreaProvider>
-          <GestureHandlerRootView style={{ flex: 1 }}>
-            <Stack screenOptions={{ headerShown: false }}>
-              <Stack.Screen name="index" />
-              <Stack.Screen name="(auth)" options={{ animation: 'fade' }} />
-              <Stack.Screen name="(tabs)" />
-              <Stack.Screen name="onboarding" options={{ animation: 'slide_from_right', gestureEnabled: false }} />
-              <Stack.Screen name="add-return" options={{ presentation: 'modal' }} />
-              <Stack.Screen name="return-details" options={{ animation: 'slide_from_right' }} />
-              <Stack.Screen name="return-instructions" options={{ animation: 'slide_from_right' }} />
-              <Stack.Screen name="return-processing" options={{ animation: 'slide_from_right' }} />
-              <Stack.Screen name="+not-found" />
-            </Stack>
-            <StatusBar style="auto" />
-          </GestureHandlerRootView>
-        </SafeAreaProvider>
-      </IconProvider>
+      <MainLayout />
     </AuthProvider>
   );
 }

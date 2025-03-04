@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { View, Text, StyleSheet, TextInput, TouchableOpacity, ScrollView, KeyboardAvoidingView, Platform, ActivityIndicator } from 'react-native';
+import { View, Text, StyleSheet, TextInput, TouchableOpacity, ScrollView, KeyboardAvoidingView, Platform, ActivityIndicator, Alert } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Link, router } from 'expo-router';
 import Animated, { FadeInDown, FadeInUp } from 'react-native-reanimated';
@@ -82,6 +82,8 @@ export default function SignupScreen() {
       return 'Email or password is incorrect. Please try again.';
     } else if (message.includes('Email not confirmed')) {
       return 'Please check your email and confirm your account before signing in.';
+    } else if (message.includes('Cannot read property')) {
+      return 'Internal error. Please try again or contact support.';
     }
     
     return message || 'An error occurred during sign up.';
@@ -104,7 +106,7 @@ export default function SignupScreen() {
       const result = await signUp(email, password);
       console.log("Sign up result:", result ? "Success" : "No result");
       
-      // Show success screen instead of alert
+      // Show success screen
       setSuccessEmail(email);
       setShowSuccessScreen(true);
       

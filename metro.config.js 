@@ -1,0 +1,23 @@
+// Learn more https://docs.expo.io/guides/customizing-metro
+const { getDefaultConfig } = require('expo/metro-config');
+const path = require('path');
+
+/** @type {import('expo/metro-config').MetroConfig} */
+const config = getDefaultConfig(__dirname, {
+  // [Web-only]: Enables CSS support in Metro.
+  isCSSEnabled: true,
+});
+
+// Add hostname to resolve deep linking in development
+// This allows authentication links to work in development mode
+config.server = {
+  ...config.server,
+  // Set this to your local IP address where the Expo server is running
+  host: '192.168.1.5',
+  // Add static file serving for the web redirect page
+  staticPaths: [
+    path.join(__dirname, 'web')
+  ]
+};
+
+module.exports = config;
