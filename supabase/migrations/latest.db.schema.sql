@@ -75,12 +75,11 @@ CREATE TABLE drop_off_locations (
 CREATE TABLE returns (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   user_id UUID NOT NULL REFERENCES profiles(id) ON DELETE CASCADE,
-  retailer_id UUID REFERENCES retailers(id) ON DELETE SET NULL,
-  retailer_name TEXT NOT NULL,
   order_number TEXT,
   order_date TIMESTAMPTZ,
   return_deadline TIMESTAMPTZ,
   items JSONB DEFAULT '[]'::jsonb,
+  reason TEXT,
   status return_status NOT NULL DEFAULT 'pending',
   tracking_number TEXT,
   carrier TEXT,
@@ -94,17 +93,6 @@ CREATE TABLE returns (
   updated_at TIMESTAMPTZ DEFAULT now()
 );
 
--- Create return_items table
-CREATE TABLE return_items (
-  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  return_id UUID NOT NULL REFERENCES returns(id) ON DELETE CASCADE,
-  name TEXT NOT NULL,
-  quantity INTEGER NOT NULL DEFAULT 1 CHECK (quantity > 0),
-  price DECIMAL(10,2) NOT NULL DEFAULT 0 CHECK (price >= 0),
-  reason TEXT,
-  created_at TIMESTAMPTZ DEFAULT now(),
-  updated_at TIMESTAMPTZ DEFAULT now()
-);
 
 -- Create return_images table
 CREATE TABLE return_images (

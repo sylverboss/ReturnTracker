@@ -15,16 +15,22 @@ export default function Index() {
     );
   }
 
-  // If user is authenticated, redirect to the main app
+  // If user is authenticated, redirect to the appropriate screen
   if (user) {
     console.log("User is authenticated, redirecting...");
     
-    // Check if user has completed onboarding
-    if (user.onboardingCompleted) {
-      return <Redirect href="/(tabs)" />;
-    } else {
-      // Redirect to profile completion page instead of onboarding carousel
+    // Check if user has a name/displayName set - if not, they need to complete their profile
+    const needsProfileCompletion = !user.name && !user.displayName;
+    
+    if (needsProfileCompletion) {
+      console.log("User needs to complete profile");
       return <Redirect href="/profile-completion" />;
+    } else if (!user.onboardingCompleted) {
+      console.log("User needs to complete onboarding");
+      return <Redirect href="/onboarding" />;
+    } else {
+      console.log("User is fully onboarded, going to main app");
+      return <Redirect href="/(tabs)" />;
     }
   }
 

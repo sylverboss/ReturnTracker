@@ -21,6 +21,7 @@ interface AppUser {
   name: string | null;
   displayName: string | null;
   photoURL?: string | null;
+  bio?: string | null;
   onboardingCompleted: boolean;
   isPremium: boolean;
   premiumExpiresAt?: string | null;
@@ -212,12 +213,39 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         if (error.code === 'PGRST116') {
           // This is expected for new users, set user with minimal data
           // and let profile completion handle the rest
-          console.log("No profile found for user, will redirect to profile completion");
+          logger.info("No profile found for user, will redirect to profile completion");
+          
+          // Try to create a basic profile
+          try {
+            logger.debug("Creating initial profile record for new user");
+            const { error: insertError } = await supabase
+              .from('profiles')
+              .insert([{
+                id: authUser.id,
+                email: authUser.email || '',
+                created_at: new Date().toISOString(),
+                onboarding_completed: false,
+                is_premium: false,
+                language: 'en',
+                locale: 'en-US'
+              }]);
+              
+            if (insertError) {
+              logger.error("Error creating initial profile:", insertError);
+            } else {
+              logger.info("Initial profile created successfully");
+            }
+          } catch (insertErr) {
+            logger.error("Exception creating initial profile:", insertErr);
+          }
+          
+          // Set minimal user data regardless of profile creation success
           setUser({
             id: authUser.id,
             email: authUser.email || null,
             name: null,
             displayName: null,
+            bio: null,
             onboardingCompleted: false,
             photoURL: null,
             isPremium: false,
@@ -227,7 +255,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           });
         } else {
           // This is an unexpected error
-          console.error("Error fetching profile:", error);
+          logger.error("Error fetching profile:", error);
           throw error;
         }
       } else if (profile) {
@@ -238,6 +266,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           email: authUser.email || null,
           name: profile.name || null,
           displayName: profile.display_name || null,
+          bio: profile.bio || null,
           onboardingCompleted: profile.onboarding_completed || false,
           photoURL: profile.avatar_url || null,
           isPremium: profile.is_premium || false,
@@ -423,6 +452,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         profileData.avatar_url = data.photoURL;
       }
       
+      if (data.bio !== undefined) {
+        profileData.bio = data.bio;
+      }
+      
       if (data.onboardingCompleted !== undefined) {
         profileData.onboarding_completed = data.onboardingCompleted;
       }
@@ -447,11 +480,38 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         profileData.locale = data.locale;
       }
       
-      // Update profile in Supabase
-      const { error } = await supabase
+      // Add required fields for new profiles
+      profileData.id = user.id;
+      profileData.email = user.email || '';
+      profileData.created_at = profileData.created_at || new Date().toISOString();
+      
+      // First check if the profile exists
+      const { data: existingProfile } = await supabase
         .from('profiles')
-        .update(profileData)
-        .eq('id', user.id);
+        .select('id')
+        .eq('id', user.id)
+        .single();
+      
+      let error;
+      
+      if (existingProfile) {
+        // Profile exists, update it
+        logger.debug("Updating existing profile");
+        const result = await supabase
+          .from('profiles')
+          .update(profileData)
+          .eq('id', user.id);
+          
+        error = result.error;
+      } else {
+        // Profile doesn't exist, insert it
+        logger.debug("Creating new profile");
+        const result = await supabase
+          .from('profiles')
+          .insert([profileData]);
+          
+        error = result.error;
+      }
       
       if (error) throw error;
       

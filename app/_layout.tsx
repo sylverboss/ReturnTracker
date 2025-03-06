@@ -103,15 +103,22 @@ function MainLayout() {
 
     const inAuthGroup = segments[0] === '(auth)';
     const inOnboardingGroup = segments[0] === 'onboarding';
+    const inProfileCompletion = segments[0] === 'profile-completion';
 
     if (!user && !inAuthGroup && segments[0] !== undefined) {
       // If no user and not in auth group, redirect to login
       router.replace('/(auth)/login');
-    } else if (user && !user.onboardingCompleted && !inOnboardingGroup && !inAuthGroup) {
-      // If user needs to complete onboarding
+    } else if (user && !user.name && !user.displayName && !inProfileCompletion && !inAuthGroup) {
+      // If user needs to complete profile
+      logger.info("User needs to complete profile");
+      router.replace('/profile-completion');
+    } else if (user && !user.onboardingCompleted && !inOnboardingGroup && !inProfileCompletion && !inAuthGroup) {
+      // If user has profile but needs to complete onboarding
+      logger.info("User needs to complete onboarding");
       router.replace('/onboarding');
-    } else if (user && inAuthGroup) {
-      // If user is authenticated but in auth group, redirect to main app
+    } else if (user && user.onboardingCompleted && inAuthGroup) {
+      // If user is fully authenticated and in auth group, redirect to main app
+      logger.info("User is fully authenticated, redirecting to main app");
       router.replace('/(tabs)');
     }
   }, [user, segments, isLoading, router]);
@@ -124,6 +131,7 @@ function MainLayout() {
             <Stack.Screen name="index" />
             <Stack.Screen name="(auth)" options={{ animation: 'fade' }} />
             <Stack.Screen name="(tabs)" />
+            <Stack.Screen name="profile-completion" options={{ animation: 'slide_from_right', gestureEnabled: false }} />
             <Stack.Screen name="onboarding" options={{ animation: 'slide_from_right', gestureEnabled: false }} />
             <Stack.Screen name="add-return" options={{ presentation: 'modal' }} />
             <Stack.Screen name="return-details" options={{ animation: 'slide_from_right' }} />

@@ -84,10 +84,19 @@ useEffect(() => {
   useEffect(() => {
     if (user) {
       console.log("User is authenticated, redirecting...");
-      if (user.onboardingCompleted) {
-        router.replace('/(tabs)');
-      } else {
+      
+      // Check if user has a name/displayName set - if not, they need to complete their profile
+      const needsProfileCompletion = !user.name && !user.displayName;
+      
+      if (needsProfileCompletion) {
+        console.log("User needs to complete profile");
+        router.replace('/profile-completion');
+      } else if (!user.onboardingCompleted) {
+        console.log("User needs to complete onboarding");
         router.replace('/onboarding');
+      } else {
+        console.log("User is fully onboarded, going to main app");
+        router.replace('/(tabs)');
       }
     }
   }, [user]);

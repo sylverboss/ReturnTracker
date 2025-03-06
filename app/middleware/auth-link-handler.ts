@@ -13,6 +13,7 @@ const logger = createLogger('AuthLinkHandler');
  * @param url The URL to process
  * @returns boolean indicating if the URL was handled
  */
+// This function is the main export
 export async function handleAuthLink(url: string): Promise<boolean> {
   logger.info('Processing URL:', url);
   
@@ -79,4 +80,14 @@ export async function handleAuthLink(url: string): Promise<boolean> {
   // URL wasn't handled by this middleware
   logger.info('URL not recognized as an auth link');
   return false;
+}
+
+// Export a non-async wrapper function that will be used as the default export
+// This fixes the "async function as default export" error in Expo Router
+export default function authLinkHandler(url: string) {
+  // Call the async function but don't return the promise
+  // This ensures the component doesn't use promises directly
+  handleAuthLink(url);
+  // Return true to indicate the handler was called
+  return true;
 }

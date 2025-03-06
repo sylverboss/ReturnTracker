@@ -8,7 +8,7 @@ export default function ProfileCompletion() {
   const [name, setName] = useState('');
   const [bio, setBio] = useState('');
   const [isLoading, setIsLoading] = useState(false);
-  const { user } = useAuth(); // Get the current user from context
+  const { user, completeOnboarding, updateUserProfile } = useAuth(); // Get the current user and functions from context
 
   const handleProfileCompletion = async () => {
     if (!name) {
@@ -18,40 +18,27 @@ export default function ProfileCompletion() {
   
     setIsLoading(true); // Set loading state to true
     try {
-      // Prepare profile data
-      const profileData = {
-        id: user.id,
-        email: user.email,
+      // First update the user profile in context but don't mark onboarding as completed yet
+      await updateUserProfile({
         name: name,
-        display_name: name,
-        bio: bio,
-        onboarding_completed: true, // Mark onboarding as completed
-        is_premium: false,
+        displayName: name,
+        onboardingCompleted: false, // Keep this false so user goes to onboarding next
+        bio: bio, // Store bio in dedicated bio field
+        isPremium: false,
         language: 'en',
-        locale: 'en-US',
-        created_at: new Date().toISOString(),
-      };
+        locale: 'en-US'
+      });
   
-      // Insert profile data (no need to check if it exists first, use upsert)
-      const { error: profileError } = await supabase
-        .from('profiles')
-        .upsert(profileData);
-  
-      if (profileError) {
-        console.error("Error creating profile:", profileError);
-        throw profileError;
-      }
-  
-      // Update the user context
-      try {
-        await completeOnboarding();
-      } catch (error) {
-        console.warn("Error updating onboarding status in context:", error);
-        // Continue anyway, we can still redirect the user
-      }
-  
-      Alert.alert('Success', 'Profile completed successfully!');
-      router.replace('/(tabs)'); // Redirect to main page after saving
+      // Show success message briefly
+      Alert.alert('Profile Complete', 'Now let\'s introduce you to ReturnTrackr!', [
+        { 
+          text: 'Continue',
+          onPress: () => {
+            // Redirect to the onboarding flow
+            router.replace('/onboarding');
+          }
+        }
+      ]);
     } catch (error) {
       console.error('Error completing profile:', error);
       Alert.alert('Error', error.message || 'Failed to complete profile');
