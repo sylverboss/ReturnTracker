@@ -24,21 +24,23 @@ CREATE TYPE notification_type AS ENUM ('reminder', 'status_update', 'deadline', 
 CREATE TYPE return_image_type AS ENUM ('receipt', 'product', 'label', 'qr_code', 'other');
 
     -- Create profiles table (replaces previous implementation)
-    CREATE TABLE profiles (
-    id UUID PRIMARY KEY REFERENCES auth.users(id) ON DELETE CASCADE,
-    email TEXT NOT NULL UNIQUE CHECK (email ~* '^[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\\.[A-Za-z]{2,}$'),
-    name TEXT,
-    created_at TIMESTAMPTZ DEFAULT now(),
-    is_premium BOOLEAN DEFAULT false,
-    premium_expires_at TIMESTAMPTZ,
-    preferences JSONB DEFAULT '{}'::jsonb CHECK (jsonb_typeof(preferences) = 'object'),
-    language TEXT DEFAULT 'en',
-    locale TEXT DEFAULT 'en-US',
-    display_name TEXT,
-    avatar_url TEXT,
-    bio TEXT,
-    updated_at TIMESTAMPTZ DEFAULT NOW();
-    onboarding_completed BOOLEAN DEFAULT false
+CREATE TABLE public.profiles (
+  id UUID NOT NULL,
+  email TEXT NOT NULL,
+  name TEXT NULL,
+  created_at TIMESTAMPTZ DEFAULT NOW(),
+  is_premium BOOLEAN NULL DEFAULT FALSE,
+  premium_expires_at TIMESTAMPTZ NULL,
+  preferences JSONB NULL DEFAULT '{}'::JSONB,
+  language TEXT NULL DEFAULT 'en'::TEXT,
+  locale TEXT NULL DEFAULT 'en-US'::TEXT,
+  display_name TEXT NULL,
+  avatar_url TEXT NULL,
+  onboarding_completed BOOLEAN NULL DEFAULT FALSE,
+  bio TEXT NULL,
+  updated_at TIMESTAMPTZ DEFAULT NOW(),
+  CONSTRAINT profiles_pkey PRIMARY KEY (id),
+  CONSTRAINT profiles_email_key UNIQUE (email)
 );
 
 -- Add JSON validation for preferences
@@ -72,25 +74,27 @@ CREATE TABLE drop_off_locations (
 );
 
 -- Create returns table (replaces previous implementation)
-CREATE TABLE returns (
-  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  user_id UUID NOT NULL REFERENCES profiles(id) ON DELETE CASCADE,
-  order_number TEXT,
-  order_date TIMESTAMPTZ,
-  return_deadline TIMESTAMPTZ,
-  items JSONB DEFAULT '[]'::jsonb,
-  reason TEXT,
-  status return_status NOT NULL DEFAULT 'pending',
-  tracking_number TEXT,
-  carrier TEXT,
-  drop_off_location_id UUID REFERENCES drop_off_locations(id) ON DELETE SET NULL,
-  custom_drop_off_notes TEXT,
-  refund_amount DECIMAL(10,2) DEFAULT 0,
-  refund_status refund_status DEFAULT 'pending',
-  notes TEXT,
-  source TEXT,
-  created_at TIMESTAMPTZ DEFAULT now(),
-  updated_at TIMESTAMPTZ DEFAULT now()
+CREATE TABLE public.returns (
+  id UUID NOT NULL DEFAULT gen_random_uuid(),
+  user_id UUID NOT NULL,
+  retailer_name TEXT NOT NULL,
+  order_number TEXT NULL,
+  order_date TIMESTAMPTZ NULL,
+  return_deadline TIMESTAMPTZ NULL,
+  order_items JSONB NULL DEFAULT '[]'::JSONB,
+  status TEXT NOT NULL DEFAULT 'pending',
+  tracking_number TEXT NULL,
+  carrier TEXT NULL,
+  drop_off_location_id UUID NULL,
+  custom_drop_off_notes TEXT NULL,
+  refund_amount NUMERIC(10,2) NULL DEFAULT 0,
+  refund_status TEXT NULL DEFAULT 'pending',
+  notes TEXT NULL,
+  source TEXT NULL,
+  created_at TIMESTAMPTZ DEFAULT NOW(),
+  updated_at TIMESTAMPTZ DEFAULT NOW(),
+  CONSTRAINT returns_pkey PRIMARY KEY (id),
+  CONSTRAINT returns_user_id_fkey FOREIGN KEY (user_id) REFERENCES public.profiles(id) ON DELETE CASCADE
 );
 
 
@@ -104,6 +108,20 @@ CREATE TABLE return_images (
   notes TEXT,
   location TEXT,
   created_at TIMESTAMPTZ DEFAULT now()
+);
+
+CREATE TABLE public.return_items (
+  id UUID NOT NULL DEFAULT gen_random_uuid(),
+  return_id UUID NULL,
+  name TEXT NULL,
+  description TEXT NULL,
+  quantity INTEGER NULL,
+  price NUMERIC NULL,
+  notes TEXT NULL,
+  item_img_url TEXT NULL,
+  created_at TIMESTAMPTZ DEFAULT NOW(),
+  CONSTRAINT return_items_pkey PRIMARY KEY (id),
+  CONSTRAINT return_items_return_id_fkey FOREIGN KEY (return_id) REFERENCES public.returns(id) ON DELETE CASCADE
 );
 
 -- Create notifications table
