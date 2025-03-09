@@ -111,24 +111,51 @@ export default function HomeScreen() {
     router.push(`/add-return?id=${returnId}`);
   };
   
-  // Generate filter tabs based on statistics
+  // Count total products across all returns
+  const countProducts = useCallback((returnItems: Return[]) => {
+    let count = 0;
+    for (const item of returnItems) {
+      if (item.order_items?.products) {
+        count += item.order_items.products.length;
+      } else {
+        // If no products array, count the return itself as one item
+        count += 1;
+      }
+    }
+    return count;
+  }, []);
+
+  // Generate filter tabs based on statistics and product counts
   const filterTabs: FilterTab[] = useMemo(() => {
-    if (!statistics) {
+    if (!statistics || !returns) {
       return [
-        { id: 'all', label: 'All Returns', count: 0 },
+        { id: 'all', label: 'All Items', count: 0 },
         { id: 'pending', label: 'Pending', count: 0 },
         { id: 'in_progress', label: 'In Progress', count: 0 },
         { id: 'completed', label: 'Completed', count: 0 }
       ];
     }
     
+    // Filter returns by status
+    const pendingReturns = returns.filter(r => r.status === 'pending');
+    const inProgressReturns = returns.filter(r => 
+      ['in_progress', 'shipped', 'delivered'].includes(r.status as ReturnStatus)
+    );
+    const completedReturns = returns.filter(r => r.status === 'completed');
+    
+    // Count products for each status
+    const totalProductCount = countProducts(returns);
+    const pendingProductCount = countProducts(pendingReturns);
+    const inProgressProductCount = countProducts(inProgressReturns);
+    const completedProductCount = countProducts(completedReturns);
+    
     return [
-      { id: 'all', label: 'All Returns', count: statistics.totalReturns },
-      { id: 'pending', label: 'Pending', count: statistics.pendingReturns },
-      { id: 'in_progress', label: 'In Progress', count: statistics.inProgressReturns },
-      { id: 'completed', label: 'Completed', count: statistics.completedReturns }
+      { id: 'all', label: 'All Items', count: totalProductCount },
+      { id: 'pending', label: 'Pending', count: pendingProductCount },
+      { id: 'in_progress', label: 'In Progress', count: inProgressProductCount },
+      { id: 'completed', label: 'Completed', count: completedProductCount }
     ];
-  }, [statistics]);
+  }, [statistics, returns, countProducts]);
   
   // Get urgency color based on days left
   const getUrgencyColor = (daysLeft: number) => {
@@ -235,11 +262,11 @@ export default function HomeScreen() {
       >
         {returns.length === 0 ? (
           <View style={styles.emptyState}>
-            <Text style={styles.emptyStateTitle}>No returns found</Text>
+            <Text style={styles.emptyStateTitle}>No items found</Text>
             <Text style={styles.emptyStateText}>
               {activeFilter === 'all' 
-                ? "You don't have any returns yet. Add a return to get started." 
-                : `You don't have any ${activeFilter.replace('_', ' ')} returns.`}
+                ? "You don't have any return items yet. Add a return to get started." 
+                : `You don't have any ${activeFilter.replace('_', ' ')} items.`}
             </Text>
             <Link href="/add-return" asChild>
               <TouchableOpacity style={styles.addReturnButton}>
@@ -249,9 +276,7 @@ export default function HomeScreen() {
           </View>
         ) : (
           returns.flatMap((item, returnIndex) => {
-            console.log(`Return ${item.id}, Retailer: ${item.retailer_name}, Deadline: ${item.return_deadline}`);
             const daysLeft = calculateDaysLeft(item.return_deadline);
-            console.log(`Days left calculation: ${daysLeft} days`);
             const totalPrice = calculateTotalPrice(item.order_items?.products);
             
             // If no products or empty products array, show one card for the whole return
@@ -318,7 +343,7 @@ export default function HomeScreen() {
                                 style={styles.processButton}
                                 onPress={() => handleProcessReturn(item.id)}
                               >
-                                <Text style={styles.processButtonText}>Process Return</Text>
+                                <Text style={styles.processButtonText}>Return Item</Text>
                               </TouchableOpacity>
                             )}
                             
@@ -346,11 +371,9 @@ export default function HomeScreen() {
             
             // Create a card for each product in the order_items
             return item.order_items.products.map((product, productIndex) => {
-              console.log(`Product ${productIndex}: ${product.product_name}, Product deadline: ${product.return_deadline}`);
               // Use product-specific deadline if available, otherwise use the return's deadline
               const productDeadline = product.return_deadline || item.return_deadline;
               const productDaysLeft = calculateDaysLeft(productDeadline);
-              console.log(`Product days left: ${productDaysLeft}`);
               
               const imageUrl = product.product_image_url || PLACEHOLDER_IMAGE;
               const productPrice = product.price * (product.quantity || 1);
@@ -421,7 +444,7 @@ export default function HomeScreen() {
                                 style={styles.processButton}
                                 onPress={() => handleProcessReturn(item.id)}
                               >
-                                <Text style={styles.processButtonText}>Process Return</Text>
+                                <Text style={styles.processButtonText}>Return Item</Text>
                               </TouchableOpacity>
                             )}
                             
