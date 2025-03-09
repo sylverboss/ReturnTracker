@@ -23,7 +23,7 @@ CREATE TYPE refund_status AS ENUM ('pending', 'partial', 'complete', 'denied');
 CREATE TYPE notification_type AS ENUM ('reminder', 'status_update', 'deadline', 'confirmation');
 CREATE TYPE return_image_type AS ENUM ('receipt', 'product', 'label', 'qr_code', 'other');
 
-    -- Create profiles table (replaces previous implementation)
+-- Create profiles table
 CREATE TABLE public.profiles (
   id UUID NOT NULL,
   email TEXT NOT NULL,
@@ -49,7 +49,7 @@ DROP CONSTRAINT IF EXISTS valid_preferences,
 ADD CONSTRAINT valid_preferences CHECK (jsonb_typeof(preferences) = 'object');
 
 -- Create retailers table
-CREATE TABLE retailers (
+CREATE TABLE public.retailers (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   name TEXT NOT NULL UNIQUE,
   website TEXT,
@@ -61,7 +61,7 @@ CREATE TABLE retailers (
 );
 
 -- Create drop_off_locations table
-CREATE TABLE drop_off_locations (
+CREATE TABLE public.drop_off_locations (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   name TEXT NOT NULL,
   address TEXT NOT NULL,
@@ -73,33 +73,45 @@ CREATE TABLE drop_off_locations (
   updated_at TIMESTAMPTZ DEFAULT now()
 );
 
--- Create returns table (replaces previous implementation)
+-- Create returns table
 CREATE TABLE public.returns (
-  id UUID NOT NULL DEFAULT gen_random_uuid(),
-  user_id UUID NOT NULL,
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  user_id UUID NOT NULL REFERENCES profiles(id) ON DELETE CASCADE,
   retailer_name TEXT NOT NULL,
-  order_number TEXT NULL,
-  order_date TIMESTAMPTZ NULL,
-  return_deadline TIMESTAMPTZ NULL,
-  order_items JSONB NULL DEFAULT '[]'::JSONB,
-  status TEXT NOT NULL DEFAULT 'pending',
-  tracking_number TEXT NULL,
-  carrier TEXT NULL,
-  drop_off_location_id UUID NULL,
-  custom_drop_off_notes TEXT NULL,
-  refund_amount NUMERIC(10,2) NULL DEFAULT 0,
-  refund_status TEXT NULL DEFAULT 'pending',
-  notes TEXT NULL,
-  source TEXT NULL,
-  created_at TIMESTAMPTZ DEFAULT NOW(),
-  updated_at TIMESTAMPTZ DEFAULT NOW(),
-  CONSTRAINT returns_pkey PRIMARY KEY (id),
-  CONSTRAINT returns_user_id_fkey FOREIGN KEY (user_id) REFERENCES public.profiles(id) ON DELETE CASCADE
+  order_number TEXT,
+  order_date TIMESTAMP WITHOUT TIME ZONE,
+  return_deadline TIMESTAMP WITHOUT TIME ZONE,
+  order_items JSONB DEFAULT '{"products": []}'::jsonb,
+  status return_status NOT NULL DEFAULT 'pending',
+  tracking_number TEXT,
+  carrier TEXT,
+  drop_off_location_id UUID REFERENCES drop_off_locations(id) ON DELETE SET NULL,
+  custom_drop_off_notes TEXT,
+  refund_amount NUMERIC(10,2) DEFAULT 0,
+  refund_status refund_status DEFAULT 'pending',
+  notes TEXT,
+  source TEXT,
+  created_at TIMESTAMPTZ DEFAULT now(),
+  updated_at TIMESTAMPTZ DEFAULT now()
 );
 
+-- Create return_items table
+CREATE TABLE public.return_items (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  return_id UUID REFERENCES returns(id) ON DELETE CASCADE,
+  name TEXT,
+  description TEXT,
+  quantity INTEGER,
+  price NUMERIC,
+  notes TEXT,
+  item_img_url TEXT,
+  refund_amount NUMERIC,
+  created_at TIMESTAMPTZ DEFAULT now(),
+  updated_at TIMESTAMPTZ DEFAULT now()
+);
 
 -- Create return_images table
-CREATE TABLE return_images (
+CREATE TABLE public.return_images (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   return_id UUID NOT NULL REFERENCES returns(id) ON DELETE CASCADE,
   image_url TEXT NOT NULL,
@@ -110,22 +122,8 @@ CREATE TABLE return_images (
   created_at TIMESTAMPTZ DEFAULT now()
 );
 
-CREATE TABLE public.return_items (
-  id UUID NOT NULL DEFAULT gen_random_uuid(),
-  return_id UUID NULL,
-  name TEXT NULL,
-  description TEXT NULL,
-  quantity INTEGER NULL,
-  price NUMERIC NULL,
-  notes TEXT NULL,
-  item_img_url TEXT NULL,
-  created_at TIMESTAMPTZ DEFAULT NOW(),
-  CONSTRAINT return_items_pkey PRIMARY KEY (id),
-  CONSTRAINT return_items_return_id_fkey FOREIGN KEY (return_id) REFERENCES public.returns(id) ON DELETE CASCADE
-);
-
 -- Create notifications table
-CREATE TABLE notifications (
+CREATE TABLE public.notifications (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   user_id UUID NOT NULL REFERENCES profiles(id) ON DELETE CASCADE,
   return_id UUID REFERENCES returns(id) ON DELETE SET NULL,
@@ -138,7 +136,7 @@ CREATE TABLE notifications (
 );
 
 -- Create translations table
-CREATE TABLE translations (
+CREATE TABLE public.translations (
   key TEXT PRIMARY KEY,
   english TEXT NOT NULL,
   spanish TEXT,
@@ -153,7 +151,6 @@ CREATE TABLE translations (
 -- Create indexes for frequent queries
 CREATE INDEX IF NOT EXISTS returns_user_id_idx ON returns(user_id);
 CREATE INDEX IF NOT EXISTS returns_status_idx ON returns(status);
-CREATE INDEX IF NOT EXISTS returns_retailer_id_idx ON returns(retailer_id);
 CREATE INDEX IF NOT EXISTS return_items_return_id_idx ON return_items(return_id);
 CREATE INDEX IF NOT EXISTS return_images_return_id_idx ON return_images(return_id);
 CREATE INDEX IF NOT EXISTS notifications_user_id_idx ON notifications(user_id);
