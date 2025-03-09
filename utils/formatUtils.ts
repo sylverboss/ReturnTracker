@@ -37,7 +37,7 @@ export function formatPhoneNumber(phone?: string | null): string {
 /**
  * Convert order items into a summary string
  * @param products Array of return products
- * @returns Summary string with count
+ * @returns Summary string with count and names
  */
 export function getProductSummary(products?: any[] | null): string {
   if (!products || products.length === 0) return 'No products';
@@ -49,7 +49,17 @@ export function getProductSummary(products?: any[] | null): string {
     return productName;
   }
   
-  return `${productName} +${products.length - 1} more`;
+  // Show more detailed summary for multiple products
+  if (products.length <= 3) {
+    // If 2-3 products, list them all
+    return products
+      .map(p => p.product_name || 'Product')
+      .join(', ');
+  }
+  
+  // If more than 3 products, show first two and count
+  const firstTwo = products.slice(0, 2).map(p => p.product_name || 'Product').join(', ');
+  return `${firstTwo} +${products.length - 2} more`;
 }
 
 /**

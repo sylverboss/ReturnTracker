@@ -105,9 +105,10 @@ export default function HomeScreen() {
     fetchData();
   };
   
-  // Process return action
+  // Process return action - navigate to select items to return
   const handleProcessReturn = (returnId: string) => {
-    router.push(`/return-instructions?id=${returnId}`);
+    // Route to a page where users can select which items to return from the bundle
+    router.push(`/add-return?id=${returnId}`);
   };
   
   // Generate filter tabs based on statistics
@@ -300,7 +301,17 @@ export default function HomeScreen() {
                             </View>
                           )}
                         </View>
-                        <Text style={styles.productName}>{productSummary}</Text>
+                        <View style={styles.productInfoContainer}>
+                          <Text style={styles.productName} numberOfLines={2}>{productSummary}</Text>
+                          {item.order_items?.products && item.order_items.products.length > 1 && (
+                            <View style={styles.itemCountBadge}>
+                              <Text style={styles.itemCountText}>
+                                {item.order_items.products.length} items
+                              </Text>
+                            </View>
+                          )}
+                        </View>
+                        
                         {item.order_number && (
                           <Text style={styles.orderNumber}>#{item.order_number}</Text>
                         )}
@@ -313,7 +324,7 @@ export default function HomeScreen() {
                               style={styles.processButton}
                               onPress={() => handleProcessReturn(item.id)}
                             >
-                              <Text style={styles.processButtonText}>Process Return</Text>
+                              <Text style={styles.processButtonText}>Select Items</Text>
                             </TouchableOpacity>
                           )}
                           
@@ -513,11 +524,29 @@ const styles = StyleSheet.create({
     fontFamily: 'Inter-Medium',
     color: '#FFFFFF',
   },
+  productInfoContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: 2,
+  },
   productName: {
     fontSize: 14,
     fontFamily: 'Inter-Medium',
     color: '#4B5563',
-    marginBottom: 2,
+    flex: 1,
+    marginRight: 8,
+  },
+  itemCountBadge: {
+    backgroundColor: '#E5E7EB',
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    borderRadius: 4,
+  },
+  itemCountText: {
+    fontSize: 10,
+    fontFamily: 'Inter-Medium',
+    color: '#4B5563',
   },
   orderNumber: {
     fontSize: 12,
