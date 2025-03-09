@@ -1,78 +1,149 @@
-import { useState, useRef, useEffect } from 'react';
-import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Image, Dimensions, Platform } from 'react-native';
+import React, { useState, useEffect, useCallback, useMemo } from 'react';
+import { 
+  View, 
+  Text, 
+  StyleSheet, 
+  ScrollView, 
+  TouchableOpacity, 
+  Image, 
+  Platform, 
+  ActivityIndicator,
+  RefreshControl,
+  Alert
+} from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { Link } from 'expo-router';
-import Animated, { FadeInDown, FadeInRight, useAnimatedStyle, useSharedValue, withSpring } from 'react-native-reanimated';
-import { Search, Bell, Filter, ArrowRight } from 'lucide-react-native';
+import { Link, useRouter } from 'expo-router';
+import Animated, { 
+  FadeInDown, 
+  FadeInRight, 
+  useAnimatedStyle, 
+  useSharedValue
+} from 'react-native-reanimated';
+import { Search, Bell, ArrowRight } from 'lucide-react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 
-// Mock data for returns
-const mockReturns = [
-  {
-    id: '1',
-    retailer: 'Nike',
-    product: 'Air Max 270',
-    orderNumber: '#1234567890',
-    price: 129.99,
-    daysLeft: 3,
-    image: 'https://images.unsplash.com/photo-1542291026-7eec264c27ff?ixlib=rb-4.0.3&ixid=MnwxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8&auto=format&fit=crop&w=1170&q=80',
-    status: 'pending'
-  },
-  {
-    id: '2',
-    retailer: "Levi's",
-    product: '501 Jeans',
-    orderNumber: '#9876543210',
-    price: 89.99,
-    daysLeft: 4,
-    image: 'https://images.unsplash.com/photo-1542272604-787c3835535d?ixlib=rb-4.0.3&ixid=MnwxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8&auto=format&fit=crop&w=1026&q=80',
-    status: 'pending'
-  },
-  {
-    id: '3',
-    retailer: 'Amazon',
-    product: 'Echo Dot',
-    orderNumber: '#AMZN123456',
-    price: 49.99,
-    daysLeft: 7,
-    image: 'https://images.unsplash.com/photo-1543512214-318c7553f230?ixlib=rb-4.0.3&ixid=MnwxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8&auto=format&fit=crop&w=1374&q=80',
-    status: 'pending'
-  },
-  {
-    id: '4',
-    retailer: 'Apple',
-    product: 'AirPods Pro',
-    orderNumber: '#AP987654321',
-    price: 249.99,
-    daysLeft: 10,
-    image: 'https://images.unsplash.com/photo-1588423771073-b8903fbb85b5?ixlib=rb-4.0.3&ixid=MnwxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8&auto=format&fit=crop&w=1170&q=80',
-    status: 'in-progress'
-  }
-];
+// Import types, services and utilities
+import { Return, ReturnStatus, ReturnStatistics, FilterTab } from '../../types/returns';
+import { getReturnsByStatus, getReturnStatistics } from '../../services/returnService';
+import { calculateDaysLeft } from '../../utils/dateUtils';
+import { formatPrice, getProductSummary, calculateTotalPrice } from '../../utils/formatUtils';
+import { supabase } from '../../lib/supabase';
 
-// Filter tabs
-const filterTabs = [
-  { id: 'all', label: 'All Returns', count: 6 },
-  { id: 'pending', label: 'Pending', count: 3 },
-  { id: 'in-progress', label: 'In Progress', count: 2 },
-  { id: 'completed', label: 'Completed', count: 1 }
-];
+// Default placeholder image for products
+const PLACEHOLDER_IMAGE = 'https://via.placeholder.com/70';
 
 export default function HomeScreen() {
-  const [activeFilter, setActiveFilter] = useState('all');
-  const [filteredReturns, setFilteredReturns] = useState(mockReturns);
-  const scrollY = useSharedValue(0);
+  const router = useRouter();
+  
+  // State variables
+  const [returns, setReturns] = useState<Return[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+  const [isRefreshing, setIsRefreshing] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [activeFilter, setActiveFilter] = useState<ReturnStatus | 'all'>('all');
+  const [statistics, setStatistics] = useState<ReturnStatistics | null>(null);
+  
+  // Animated values
   const headerHeight = useSharedValue(Platform.OS === 'ios' ? 120 : 100);
   
-  // Filter returns based on active filter
+  // Check authentication on mount
   useEffect(() => {
-    if (activeFilter === 'all') {
-      setFilteredReturns(mockReturns);
-    } else {
-      setFilteredReturns(mockReturns.filter(item => item.status === activeFilter));
-    }
+    checkAuth();
+  }, []);
+  
+  // Fetch data on mount and when filter changes
+  useEffect(() => {
+    fetchData();
   }, [activeFilter]);
-
+  
+  // Check if user is authenticated
+  const checkAuth = async () => {
+    try {
+      const { data } = await supabase.auth.getSession();
+      if (!data.session) {
+        router.replace('/(auth)/login');
+      }
+    } catch (err) {
+      console.error('Authentication check failed:', err);
+    }
+  };
+  
+  // Fetch all necessary data
+  const fetchData = async () => {
+    if (isRefreshing) return; // Prevent multiple simultaneous fetches
+    
+    setIsLoading(true);
+    setError(null);
+    
+    try {
+      // Fetch returns based on active filter
+      const returnsData = await getReturnsByStatus(activeFilter);
+      setReturns(returnsData);
+      
+      // Fetch statistics only if not already loaded or if refreshing
+      if (!statistics || isRefreshing) {
+        const statsData = await getReturnStatistics();
+        setStatistics(statsData);
+      }
+    } catch (err) {
+      console.error('Error fetching data:', err);
+      setError('Failed to load data. Please check your connection and try again.');
+    } finally {
+      setIsLoading(false);
+      setIsRefreshing(false);
+    }
+  };
+  
+  // Handle pull-to-refresh
+  const onRefresh = useCallback(() => {
+    setIsRefreshing(true);
+    fetchData();
+  }, [activeFilter]);
+  
+  // Retry after error
+  const handleRetry = () => {
+    fetchData();
+  };
+  
+  // Process return action
+  const handleProcessReturn = (returnId: string) => {
+    router.push(`/return-instructions?id=${returnId}`);
+  };
+  
+  // Generate filter tabs based on statistics
+  const filterTabs: FilterTab[] = useMemo(() => {
+    if (!statistics) {
+      return [
+        { id: 'all', label: 'All Returns', count: 0 },
+        { id: 'pending', label: 'Pending', count: 0 },
+        { id: 'in_progress', label: 'In Progress', count: 0 },
+        { id: 'completed', label: 'Completed', count: 0 }
+      ];
+    }
+    
+    return [
+      { id: 'all', label: 'All Returns', count: statistics.totalReturns },
+      { id: 'pending', label: 'Pending', count: statistics.pendingReturns },
+      { id: 'in_progress', label: 'In Progress', count: statistics.inProgressReturns },
+      { id: 'completed', label: 'Completed', count: statistics.completedReturns }
+    ];
+  }, [statistics]);
+  
+  // Get urgency color based on days left
+  const getUrgencyColor = (daysLeft: number) => {
+    if (daysLeft <= 3) return ['#FF4D4D', '#FF9494'];
+    if (daysLeft <= 7) return ['#FFBB0E', '#FFE07D'];
+    return ['#4CAF50', '#A5D6A7'];
+  };
+  
+  // Get image URL from return product
+  const getImageUrl = (returnItem: Return): string => {
+    if (returnItem.order_items?.products && returnItem.order_items.products.length > 0) {
+      return returnItem.order_items.products[0].product_image_url || PLACEHOLDER_IMAGE;
+    }
+    return PLACEHOLDER_IMAGE;
+  };
+  
   // Animated header style
   const headerStyle = useAnimatedStyle(() => {
     return {
@@ -81,20 +152,36 @@ export default function HomeScreen() {
       opacity: 1,
     };
   });
-
-  // Get urgency color based on days left
-  const getUrgencyColor = (daysLeft) => {
-    if (daysLeft <= 3) return ['#FF4D4D', '#FF9494'];
-    if (daysLeft <= 7) return ['#FFBB0E', '#FFE07D'];
-    return ['#4CAF50', '#A5D6A7'];
-  };
+  
+  // Loading screen
+  if (isLoading && !isRefreshing) {
+    return (
+      <SafeAreaView style={styles.loadingContainer} edges={['top']}>
+        <ActivityIndicator size="large" color="#3B82F6" />
+        <Text style={styles.loadingText}>Loading your returns...</Text>
+      </SafeAreaView>
+    );
+  }
+  
+  // Error screen
+  if (error && !isRefreshing) {
+    return (
+      <SafeAreaView style={styles.errorContainer} edges={['top']}>
+        <Text style={styles.errorTitle}>Something went wrong</Text>
+        <Text style={styles.errorText}>{error}</Text>
+        <TouchableOpacity style={styles.retryButton} onPress={handleRetry}>
+          <Text style={styles.retryButtonText}>Retry</Text>
+        </TouchableOpacity>
+      </SafeAreaView>
+    );
+  }
 
   return (
     <SafeAreaView style={styles.container} edges={['top']}>
-      {/* Animated Header */}
+      {/* Header */}
       <Animated.View style={[styles.header, headerStyle]}>
         <View style={styles.headerTop}>
-          <Text style={styles.headerTitle}>ReturnTracker</Text>
+          <Text style={styles.headerTitle}>ReturnTrackr</Text>
           <View style={styles.headerIcons}>
             <TouchableOpacity style={styles.iconButton}>
               <Search size={24} color="#1F2937" />
@@ -141,75 +228,148 @@ export default function HomeScreen() {
       <ScrollView 
         showsVerticalScrollIndicator={false}
         contentContainerStyle={styles.scrollContent}
+        refreshControl={
+          <RefreshControl 
+            refreshing={isRefreshing} 
+            onRefresh={onRefresh}
+            colors={['#3B82F6']}
+            tintColor="#3B82F6"
+          />
+        }
       >
-        {filteredReturns.map((item, index) => (
-          <Animated.View 
-            key={item.id}
-            entering={FadeInRight.delay(200 + index * 100).springify()}
-            style={styles.returnCardContainer}
-          >
-            <Link href={`/return-details?id=${item.id}`} asChild>
-              <TouchableOpacity>
-                <View style={styles.returnCard}>
-                  <View style={styles.returnCardLeft}>
-                    <Image 
-                      source={{ uri: item.image }} 
-                      style={styles.productImage} 
-                    />
-                  </View>
-                  <View style={styles.returnCardContent}>
-                    <View style={styles.returnCardHeader}>
-                      <Text style={styles.retailerName}>{item.retailer}</Text>
-                      <LinearGradient
-                        colors={getUrgencyColor(item.daysLeft)}
-                        start={{ x: 0, y: 0 }}
-                        end={{ x: 1, y: 0 }}
-                        style={styles.daysLeftBadge}
-                      >
-                        <Text style={styles.daysLeftText}>
-                          {item.daysLeft} {item.daysLeft === 1 ? 'day' : 'days'} left
-                        </Text>
-                      </LinearGradient>
-                    </View>
-                    <Text style={styles.productName}>{item.product}</Text>
-                    <Text style={styles.orderNumber}>{item.orderNumber}</Text>
-                    <View style={styles.returnCardFooter}>
-                      <Text style={styles.priceText}>${item.price}</Text>
-                      <TouchableOpacity style={styles.processButton}>
-                        <Text style={styles.processButtonText}>Process Return</Text>
-                      </TouchableOpacity>
-                    </View>
-                  </View>
-                </View>
+        {returns.length === 0 ? (
+          <View style={styles.emptyState}>
+            <Text style={styles.emptyStateTitle}>No returns found</Text>
+            <Text style={styles.emptyStateText}>
+              {activeFilter === 'all' 
+                ? "You don't have any returns yet. Add a return to get started." 
+                : `You don't have any ${activeFilter.replace('_', ' ')} returns.`}
+            </Text>
+            <Link href="/add-return" asChild>
+              <TouchableOpacity style={styles.addReturnButton}>
+                <Text style={styles.addReturnButtonText}>Add Return</Text>
               </TouchableOpacity>
             </Link>
-          </Animated.View>
-        ))}
+          </View>
+        ) : (
+          returns.map((item, index) => {
+            const daysLeft = calculateDaysLeft(item.return_deadline);
+            const productSummary = getProductSummary(item.order_items?.products);
+            const imageUrl = getImageUrl(item);
+            const totalPrice = calculateTotalPrice(item.order_items?.products);
+            
+            return (
+              <Animated.View 
+                key={item.id}
+                entering={FadeInRight.delay(200 + index * 100).springify()}
+                style={styles.returnCardContainer}
+              >
+                <Link href={`/return-details?id=${item.id}`} asChild>
+                  <TouchableOpacity>
+                    <View style={styles.returnCard}>
+                      <View style={styles.returnCardLeft}>
+                        <Image 
+                          source={{ uri: imageUrl }} 
+                          style={styles.productImage}
+                          defaultSource={require('../../assets/images/icon.png')}
+                        />
+                      </View>
+                      <View style={styles.returnCardContent}>
+                        <View style={styles.returnCardHeader}>
+                          <Text style={styles.retailerName}>{item.retailer_name}</Text>
+                          {daysLeft > 0 && item.status !== 'completed' && (
+                            <LinearGradient
+                              colors={getUrgencyColor(daysLeft)}
+                              start={{ x: 0, y: 0 }}
+                              end={{ x: 1, y: 0 }}
+                              style={styles.daysLeftBadge}
+                            >
+                              <Text style={styles.daysLeftText}>
+                                {daysLeft} {daysLeft === 1 ? 'day' : 'days'} left
+                              </Text>
+                            </LinearGradient>
+                          )}
+                          {item.status === 'completed' && (
+                            <View style={styles.completedBadge}>
+                              <Text style={styles.completedText}>Completed</Text>
+                            </View>
+                          )}
+                          {daysLeft === 0 && item.status !== 'completed' && (
+                            <View style={styles.expiredBadge}>
+                              <Text style={styles.expiredText}>Expired</Text>
+                            </View>
+                          )}
+                        </View>
+                        <Text style={styles.productName}>{productSummary}</Text>
+                        {item.order_number && (
+                          <Text style={styles.orderNumber}>#{item.order_number}</Text>
+                        )}
+                        <View style={styles.returnCardFooter}>
+                          <Text style={styles.priceText}>{formatPrice(totalPrice)}</Text>
+                          
+                          {/* Show different actions based on status */}
+                          {item.status === 'pending' && (
+                            <TouchableOpacity 
+                              style={styles.processButton}
+                              onPress={() => handleProcessReturn(item.id)}
+                            >
+                              <Text style={styles.processButtonText}>Process Return</Text>
+                            </TouchableOpacity>
+                          )}
+                          
+                          {(item.status === 'in_progress' || item.status === 'shipped') && (
+                            <TouchableOpacity style={styles.trackButton}>
+                              <Text style={styles.trackButtonText}>Track Return</Text>
+                            </TouchableOpacity>
+                          )}
+                          
+                          {item.status === 'completed' && (
+                            <View style={styles.refundBadge}>
+                              <Text style={styles.refundText}>
+                                Refunded: {formatPrice(item.refund_amount)}
+                              </Text>
+                            </View>
+                          )}
+                        </View>
+                      </View>
+                    </View>
+                  </TouchableOpacity>
+                </Link>
+              </Animated.View>
+            );
+          })
+        )}
 
         {/* Money Saved Card */}
-        <Animated.View 
-          entering={FadeInDown.delay(600).springify()}
-          style={styles.moneySavedCard}
-        >
-          <LinearGradient
-            colors={['#3B82F6', '#2563EB']}
-            start={{ x: 0, y: 0 }}
-            end={{ x: 1, y: 1 }}
-            style={styles.moneySavedGradient}
+        {statistics && (
+          <Animated.View 
+            entering={FadeInDown.delay(600).springify()}
+            style={styles.moneySavedCard}
           >
-            <View style={styles.moneySavedContent}>
-              <View>
-                <Text style={styles.moneySavedLabel}>Money Saved This Year</Text>
-                <Text style={styles.moneySavedAmount}>$519.96</Text>
-                <Text style={styles.moneySavedSubtext}>from 6 successful returns</Text>
+            <LinearGradient
+              colors={['#3B82F6', '#2563EB']}
+              start={{ x: 0, y: 0 }}
+              end={{ x: 1, y: 1 }}
+              style={styles.moneySavedGradient}
+            >
+              <View style={styles.moneySavedContent}>
+                <View>
+                  <Text style={styles.moneySavedLabel}>Money Saved This Year</Text>
+                  <Text style={styles.moneySavedAmount}>{formatPrice(statistics.totalSaved)}</Text>
+                  <Text style={styles.moneySavedSubtext}>
+                    from {statistics.completedReturns} successful {statistics.completedReturns === 1 ? 'return' : 'returns'}
+                  </Text>
+                </View>
+                <Link href="/analytics" asChild>
+                  <TouchableOpacity style={styles.viewAnalyticsButton}>
+                    <Text style={styles.viewAnalyticsText}>View Analytics</Text>
+                    <ArrowRight size={16} color="#FFFFFF" />
+                  </TouchableOpacity>
+                </Link>
               </View>
-              <TouchableOpacity style={styles.viewAnalyticsButton}>
-                <Text style={styles.viewAnalyticsText}>View Analytics</Text>
-                <ArrowRight size={16} color="#FFFFFF" />
-              </TouchableOpacity>
-            </View>
-          </LinearGradient>
-        </Animated.View>
+            </LinearGradient>
+          </Animated.View>
+        )}
 
         {/* Email Forwarding Reminder */}
         <Animated.View 
@@ -239,6 +399,7 @@ export default function HomeScreen() {
 }
 
 const styles = StyleSheet.create({
+  // Main container styles
   container: {
     flex: 1,
     backgroundColor: '#F9FAFB',
@@ -471,5 +632,130 @@ const styles = StyleSheet.create({
     fontFamily: 'Inter-Medium',
     color: '#3B82F6',
     marginRight: 4,
+  },
+  
+  // Loading state styles
+  loadingContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    backgroundColor: '#F9FAFB',
+  },
+  loadingText: {
+    marginTop: 12,
+    fontSize: 16,
+    fontFamily: 'Inter-Medium',
+    color: '#4B5563',
+  },
+  
+  // Error state styles
+  errorContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    backgroundColor: '#F9FAFB',
+    padding: 20,
+  },
+  errorTitle: {
+    fontSize: 18,
+    fontFamily: 'Inter-SemiBold',
+    color: '#EF4444',
+    marginBottom: 8,
+  },
+  errorText: {
+    fontSize: 14,
+    fontFamily: 'Inter-Regular',
+    color: '#4B5563',
+    textAlign: 'center',
+    marginBottom: 16,
+  },
+  retryButton: {
+    backgroundColor: '#3B82F6',
+    paddingHorizontal: 16,
+    paddingVertical: 8,
+    borderRadius: 8,
+  },
+  retryButtonText: {
+    fontSize: 14,
+    fontFamily: 'Inter-Medium',
+    color: '#FFFFFF',
+  },
+  
+  // Empty state styles
+  emptyState: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    padding: 20,
+    marginTop: 40,
+  },
+  emptyStateTitle: {
+    fontSize: 18,
+    fontFamily: 'Inter-SemiBold',
+    color: '#1F2937',
+    marginBottom: 8,
+  },
+  emptyStateText: {
+    fontSize: 14,
+    fontFamily: 'Inter-Regular',
+    color: '#6B7280',
+    textAlign: 'center',
+    marginBottom: 20,
+  },
+  addReturnButton: {
+    backgroundColor: '#3B82F6',
+    paddingHorizontal: 16,
+    paddingVertical: 10,
+    borderRadius: 8,
+  },
+  addReturnButtonText: {
+    fontSize: 14,
+    fontFamily: 'Inter-Medium',
+    color: '#FFFFFF',
+  },
+  
+  // Status badges
+  completedBadge: {
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 12,
+    backgroundColor: '#10B981',
+  },
+  completedText: {
+    fontSize: 12,
+    fontFamily: 'Inter-Medium',
+    color: '#FFFFFF',
+  },
+  expiredBadge: {
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 12,
+    backgroundColor: '#6B7280',
+  },
+  expiredText: {
+    fontSize: 12,
+    fontFamily: 'Inter-Medium',
+    color: '#FFFFFF',
+  },
+  trackButton: {
+    backgroundColor: '#EFF6FF',
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 6,
+  },
+  trackButtonText: {
+    fontSize: 12,
+    fontFamily: 'Inter-Medium',
+    color: '#3B82F6',
+  },
+  refundBadge: {
+    backgroundColor: '#ECFDF5',
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 6,
+  },
+  refundText: {
+    fontSize: 12,
+    fontFamily: 'Inter-Medium',
+    color: '#10B981',
   },
 });
