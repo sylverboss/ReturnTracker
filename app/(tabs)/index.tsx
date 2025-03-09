@@ -298,7 +298,7 @@ export default function HomeScreen() {
                               </View>
                             )}
                           </View>
-                          <Text style={styles.productItemText}>No product details</Text>
+                          <Text style={styles.productName}>No product details</Text>
                           {item.order_number && (
                             <Text style={styles.orderNumber}>#{item.order_number}</Text>
                           )}
@@ -311,7 +311,7 @@ export default function HomeScreen() {
                                 style={styles.processButton}
                                 onPress={() => handleProcessReturn(item.id)}
                               >
-                                <Text style={styles.processButtonText}>Select Items</Text>
+                                <Text style={styles.processButtonText}>Process Return</Text>
                               </TouchableOpacity>
                             )}
                             
@@ -361,7 +361,8 @@ export default function HomeScreen() {
                         <View style={styles.returnCardContent}>
                           <View style={styles.returnCardHeader}>
                             <Text style={styles.retailerName}>{item.retailer_name}</Text>
-                            {daysLeft > 0 && item.status !== 'completed' && (
+                            {/* Always show days left badge for pending returns with days left */}
+                            {daysLeft > 0 && item.status === 'pending' && (
                               <LinearGradient
                                 colors={getUrgencyColor(daysLeft)}
                                 start={{ x: 0, y: 0 }}
@@ -383,15 +384,17 @@ export default function HomeScreen() {
                                 <Text style={styles.expiredText}>Expired</Text>
                               </View>
                             )}
+                            {item.status !== 'pending' && item.status !== 'completed' && daysLeft > 0 && (
+                              <View style={styles.inProgressBadge}>
+                                <Text style={styles.inProgressText}>In Progress</Text>
+                              </View>
+                            )}
                           </View>
-                          <View style={styles.productInfoContainer}>
-                            <View style={styles.productItemsContainer}>
-                              <Text style={styles.productItemText} numberOfLines={1}>
-                                {product.product_name || 'Product'} 
-                                {product.quantity > 1 ? ` (x${product.quantity})` : ''}
-                              </Text>
-                            </View>
-                          </View>
+                          {/* Product name - simplified to match original mockup */}
+                          <Text style={styles.productName} numberOfLines={2}>
+                            {product.product_name || 'Product'} 
+                            {product.quantity > 1 ? ` (x${product.quantity})` : ''}
+                          </Text>
                           
                           {item.order_number && (
                             <Text style={styles.orderNumber}>#{item.order_number}</Text>
@@ -405,7 +408,7 @@ export default function HomeScreen() {
                                 style={styles.processButton}
                                 onPress={() => handleProcessReturn(item.id)}
                               >
-                                <Text style={styles.processButtonText}>Select Items</Text>
+                                <Text style={styles.processButtonText}>Process Return</Text>
                               </TouchableOpacity>
                             )}
                             
@@ -614,15 +617,11 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     marginBottom: 6,
   },
-  productItemsContainer: {
-    flex: 1,
-    marginRight: 8,
-  },
-  productItemText: {
-    fontSize: 13,
+  productName: {
+    fontSize: 14,
     fontFamily: 'Inter-Medium',
     color: '#4B5563',
-    marginBottom: 3,
+    marginBottom: 6,
   },
   itemCountBadge: {
     backgroundColor: '#E5E7EB',
@@ -848,6 +847,17 @@ const styles = StyleSheet.create({
     backgroundColor: '#6B7280',
   },
   expiredText: {
+    fontSize: 12,
+    fontFamily: 'Inter-Medium',
+    color: '#FFFFFF',
+  },
+  inProgressBadge: {
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 12,
+    backgroundColor: '#3B82F6',
+  },
+  inProgressText: {
     fontSize: 12,
     fontFamily: 'Inter-Medium',
     color: '#FFFFFF',
