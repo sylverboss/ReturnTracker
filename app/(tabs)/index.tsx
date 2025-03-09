@@ -249,7 +249,9 @@ export default function HomeScreen() {
           </View>
         ) : (
           returns.flatMap((item, returnIndex) => {
+            console.log(`Return ${item.id}, Retailer: ${item.retailer_name}, Deadline: ${item.return_deadline}`);
             const daysLeft = calculateDaysLeft(item.return_deadline);
+            console.log(`Days left calculation: ${daysLeft} days`);
             const totalPrice = calculateTotalPrice(item.order_items?.products);
             
             // If no products or empty products array, show one card for the whole return
@@ -275,7 +277,7 @@ export default function HomeScreen() {
                         <View style={styles.returnCardContent}>
                           <View style={styles.returnCardHeader}>
                             <Text style={styles.retailerName}>{item.retailer_name}</Text>
-                            {daysLeft > 0 && item.status !== 'completed' && (
+                            {daysLeft > 0 && item.status === 'pending' && (
                               <LinearGradient
                                 colors={getUrgencyColor(daysLeft)}
                                 start={{ x: 0, y: 0 }}
@@ -295,6 +297,11 @@ export default function HomeScreen() {
                             {daysLeft === 0 && item.status !== 'completed' && (
                               <View style={styles.expiredBadge}>
                                 <Text style={styles.expiredText}>Expired</Text>
+                              </View>
+                            )}
+                            {item.status !== 'pending' && item.status !== 'completed' && daysLeft > 0 && (
+                              <View style={styles.inProgressBadge}>
+                                <Text style={styles.inProgressText}>In Progress</Text>
                               </View>
                             )}
                           </View>
@@ -339,6 +346,12 @@ export default function HomeScreen() {
             
             // Create a card for each product in the order_items
             return item.order_items.products.map((product, productIndex) => {
+              console.log(`Product ${productIndex}: ${product.product_name}, Product deadline: ${product.return_deadline}`);
+              // Use product-specific deadline if available, otherwise use the return's deadline
+              const productDeadline = product.return_deadline || item.return_deadline;
+              const productDaysLeft = calculateDaysLeft(productDeadline);
+              console.log(`Product days left: ${productDaysLeft}`);
+              
               const imageUrl = product.product_image_url || PLACEHOLDER_IMAGE;
               const productPrice = product.price * (product.quantity || 1);
               
@@ -362,15 +375,15 @@ export default function HomeScreen() {
                           <View style={styles.returnCardHeader}>
                             <Text style={styles.retailerName}>{item.retailer_name}</Text>
                             {/* Always show days left badge for pending returns with days left */}
-                            {daysLeft > 0 && item.status === 'pending' && (
+                            {productDaysLeft > 0 && item.status === 'pending' && (
                               <LinearGradient
-                                colors={getUrgencyColor(daysLeft)}
+                                colors={getUrgencyColor(productDaysLeft)}
                                 start={{ x: 0, y: 0 }}
                                 end={{ x: 1, y: 0 }}
                                 style={styles.daysLeftBadge}
                               >
                                 <Text style={styles.daysLeftText}>
-                                  {daysLeft} {daysLeft === 1 ? 'day' : 'days'} left
+                                  {productDaysLeft} {productDaysLeft === 1 ? 'day' : 'days'} left
                                 </Text>
                               </LinearGradient>
                             )}
@@ -379,12 +392,12 @@ export default function HomeScreen() {
                                 <Text style={styles.completedText}>Completed</Text>
                               </View>
                             )}
-                            {daysLeft === 0 && item.status !== 'completed' && (
+                            {productDaysLeft === 0 && item.status !== 'completed' && (
                               <View style={styles.expiredBadge}>
                                 <Text style={styles.expiredText}>Expired</Text>
                               </View>
                             )}
-                            {item.status !== 'pending' && item.status !== 'completed' && daysLeft > 0 && (
+                            {item.status !== 'pending' && item.status !== 'completed' && productDaysLeft > 0 && (
                               <View style={styles.inProgressBadge}>
                                 <Text style={styles.inProgressText}>In Progress</Text>
                               </View>

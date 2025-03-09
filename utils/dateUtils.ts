@@ -10,14 +10,19 @@
 export function calculateDaysLeft(dateString?: string | null): number {
   if (!dateString) return 0;
   
+  console.log(`Calculating days left for date: ${dateString}`);
+  
   const today = new Date();
   today.setHours(0, 0, 0, 0); // Normalize time to start of day
+  console.log(`Today: ${today.toISOString()}`);
   
   const targetDate = new Date(dateString);
   targetDate.setHours(0, 0, 0, 0); // Normalize time to start of day
+  console.log(`Target date: ${targetDate.toISOString()}`);
   
   const differenceMs = targetDate.getTime() - today.getTime();
   const days = Math.ceil(differenceMs / (1000 * 60 * 60 * 24));
+  console.log(`Difference in days: ${days}`);
   
   return days > 0 ? days : 0;
 }
