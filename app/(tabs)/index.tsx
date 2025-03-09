@@ -137,13 +137,8 @@ export default function HomeScreen() {
     return ['#4CAF50', '#A5D6A7'];
   };
   
-  // Get image URL from return product
-  const getImageUrl = (returnItem: Return): string => {
-    if (returnItem.order_items?.products && returnItem.order_items.products.length > 0) {
-      return returnItem.order_items.products[0].product_image_url || PLACEHOLDER_IMAGE;
-    }
-    return PLACEHOLDER_IMAGE;
-  };
+  // This function is no longer needed as we're now showing individual product cards
+  // Each product card uses its own product_image_url
   
   // Animated header style
   const headerStyle = useAnimatedStyle(() => {
@@ -253,101 +248,188 @@ export default function HomeScreen() {
             </Link>
           </View>
         ) : (
-          returns.map((item, index) => {
+          returns.flatMap((item, returnIndex) => {
             const daysLeft = calculateDaysLeft(item.return_deadline);
-            const productSummary = getProductSummary(item.order_items?.products);
-            const imageUrl = getImageUrl(item);
             const totalPrice = calculateTotalPrice(item.order_items?.products);
             
-            return (
-              <Animated.View 
-                key={item.id}
-                entering={FadeInRight.delay(200 + index * 100).springify()}
-                style={styles.returnCardContainer}
-              >
-                <Link href={`/return-details?id=${item.id}`} asChild>
-                  <TouchableOpacity>
-                    <View style={styles.returnCard}>
-                      <View style={styles.returnCardLeft}>
-                        <Image 
-                          source={{ uri: imageUrl }} 
-                          style={styles.productImage}
-                          defaultSource={require('../../assets/images/icon.png')}
-                        />
-                      </View>
-                      <View style={styles.returnCardContent}>
-                        <View style={styles.returnCardHeader}>
-                          <Text style={styles.retailerName}>{item.retailer_name}</Text>
-                          {daysLeft > 0 && item.status !== 'completed' && (
-                            <LinearGradient
-                              colors={getUrgencyColor(daysLeft)}
-                              start={{ x: 0, y: 0 }}
-                              end={{ x: 1, y: 0 }}
-                              style={styles.daysLeftBadge}
-                            >
-                              <Text style={styles.daysLeftText}>
-                                {daysLeft} {daysLeft === 1 ? 'day' : 'days'} left
-                              </Text>
-                            </LinearGradient>
-                          )}
-                          {item.status === 'completed' && (
-                            <View style={styles.completedBadge}>
-                              <Text style={styles.completedText}>Completed</Text>
-                            </View>
-                          )}
-                          {daysLeft === 0 && item.status !== 'completed' && (
-                            <View style={styles.expiredBadge}>
-                              <Text style={styles.expiredText}>Expired</Text>
-                            </View>
-                          )}
+            // If no products or empty products array, show one card for the whole return
+            if (!item.order_items?.products || item.order_items.products.length === 0) {
+              const imageUrl = PLACEHOLDER_IMAGE;
+              
+              return (
+                <Animated.View 
+                  key={`${item.id}-empty`}
+                  entering={FadeInRight.delay(200 + returnIndex * 100).springify()}
+                  style={styles.returnCardContainer}
+                >
+                  <Link href={`/return-details?id=${item.id}`} asChild>
+                    <TouchableOpacity>
+                      <View style={styles.returnCard}>
+                        <View style={styles.returnCardLeft}>
+                          <Image 
+                            source={{ uri: imageUrl }} 
+                            style={styles.productImage}
+                            defaultSource={require('../../assets/images/icon.png')}
+                          />
                         </View>
-                        <View style={styles.productInfoContainer}>
-                          <Text style={styles.productName} numberOfLines={2}>{productSummary}</Text>
-                          {item.order_items?.products && item.order_items.products.length > 1 && (
-                            <View style={styles.itemCountBadge}>
-                              <Text style={styles.itemCountText}>
-                                {item.order_items.products.length} items
-                              </Text>
-                            </View>
+                        <View style={styles.returnCardContent}>
+                          <View style={styles.returnCardHeader}>
+                            <Text style={styles.retailerName}>{item.retailer_name}</Text>
+                            {daysLeft > 0 && item.status !== 'completed' && (
+                              <LinearGradient
+                                colors={getUrgencyColor(daysLeft)}
+                                start={{ x: 0, y: 0 }}
+                                end={{ x: 1, y: 0 }}
+                                style={styles.daysLeftBadge}
+                              >
+                                <Text style={styles.daysLeftText}>
+                                  {daysLeft} {daysLeft === 1 ? 'day' : 'days'} left
+                                </Text>
+                              </LinearGradient>
+                            )}
+                            {item.status === 'completed' && (
+                              <View style={styles.completedBadge}>
+                                <Text style={styles.completedText}>Completed</Text>
+                              </View>
+                            )}
+                            {daysLeft === 0 && item.status !== 'completed' && (
+                              <View style={styles.expiredBadge}>
+                                <Text style={styles.expiredText}>Expired</Text>
+                              </View>
+                            )}
+                          </View>
+                          <Text style={styles.productItemText}>No product details</Text>
+                          {item.order_number && (
+                            <Text style={styles.orderNumber}>#{item.order_number}</Text>
                           )}
-                        </View>
-                        
-                        {item.order_number && (
-                          <Text style={styles.orderNumber}>#{item.order_number}</Text>
-                        )}
-                        <View style={styles.returnCardFooter}>
-                          <Text style={styles.priceText}>{formatPrice(totalPrice)}</Text>
-                          
-                          {/* Show different actions based on status */}
-                          {item.status === 'pending' && (
-                            <TouchableOpacity 
-                              style={styles.processButton}
-                              onPress={() => handleProcessReturn(item.id)}
-                            >
-                              <Text style={styles.processButtonText}>Select Items</Text>
-                            </TouchableOpacity>
-                          )}
-                          
-                          {(item.status === 'in_progress' || item.status === 'shipped') && (
-                            <TouchableOpacity style={styles.trackButton}>
-                              <Text style={styles.trackButtonText}>Track Return</Text>
-                            </TouchableOpacity>
-                          )}
-                          
-                          {item.status === 'completed' && (
-                            <View style={styles.refundBadge}>
-                              <Text style={styles.refundText}>
-                                Refunded: {formatPrice(item.refund_amount)}
-                              </Text>
-                            </View>
-                          )}
+                          <View style={styles.returnCardFooter}>
+                            <Text style={styles.priceText}>{formatPrice(0)}</Text>
+                            
+                            {/* Show different actions based on status */}
+                            {item.status === 'pending' && (
+                              <TouchableOpacity 
+                                style={styles.processButton}
+                                onPress={() => handleProcessReturn(item.id)}
+                              >
+                                <Text style={styles.processButtonText}>Select Items</Text>
+                              </TouchableOpacity>
+                            )}
+                            
+                            {(item.status === 'in_progress' || item.status === 'shipped') && (
+                              <TouchableOpacity style={styles.trackButton}>
+                                <Text style={styles.trackButtonText}>Track Return</Text>
+                              </TouchableOpacity>
+                            )}
+                            
+                            {item.status === 'completed' && (
+                              <View style={styles.refundBadge}>
+                                <Text style={styles.refundText}>
+                                  Refunded: {formatPrice(item.refund_amount)}
+                                </Text>
+                              </View>
+                            )}
+                          </View>
                         </View>
                       </View>
-                    </View>
-                  </TouchableOpacity>
-                </Link>
-              </Animated.View>
-            );
+                    </TouchableOpacity>
+                  </Link>
+                </Animated.View>
+              );
+            }
+            
+            // Create a card for each product in the order_items
+            return item.order_items.products.map((product, productIndex) => {
+              const imageUrl = product.product_image_url || PLACEHOLDER_IMAGE;
+              const productPrice = product.price * (product.quantity || 1);
+              
+              return (
+                <Animated.View 
+                  key={`${item.id}-${productIndex}`}
+                  entering={FadeInRight.delay(200 + (returnIndex * 100) + (productIndex * 50)).springify()}
+                  style={styles.returnCardContainer}
+                >
+                  <Link href={`/return-details?id=${item.id}`} asChild>
+                    <TouchableOpacity>
+                      <View style={styles.returnCard}>
+                        <View style={styles.returnCardLeft}>
+                          <Image 
+                            source={{ uri: imageUrl }} 
+                            style={styles.productImage}
+                            defaultSource={require('../../assets/images/icon.png')}
+                          />
+                        </View>
+                        <View style={styles.returnCardContent}>
+                          <View style={styles.returnCardHeader}>
+                            <Text style={styles.retailerName}>{item.retailer_name}</Text>
+                            {daysLeft > 0 && item.status !== 'completed' && (
+                              <LinearGradient
+                                colors={getUrgencyColor(daysLeft)}
+                                start={{ x: 0, y: 0 }}
+                                end={{ x: 1, y: 0 }}
+                                style={styles.daysLeftBadge}
+                              >
+                                <Text style={styles.daysLeftText}>
+                                  {daysLeft} {daysLeft === 1 ? 'day' : 'days'} left
+                                </Text>
+                              </LinearGradient>
+                            )}
+                            {item.status === 'completed' && (
+                              <View style={styles.completedBadge}>
+                                <Text style={styles.completedText}>Completed</Text>
+                              </View>
+                            )}
+                            {daysLeft === 0 && item.status !== 'completed' && (
+                              <View style={styles.expiredBadge}>
+                                <Text style={styles.expiredText}>Expired</Text>
+                              </View>
+                            )}
+                          </View>
+                          <View style={styles.productInfoContainer}>
+                            <View style={styles.productItemsContainer}>
+                              <Text style={styles.productItemText} numberOfLines={1}>
+                                {product.product_name || 'Product'} 
+                                {product.quantity > 1 ? ` (x${product.quantity})` : ''}
+                              </Text>
+                            </View>
+                          </View>
+                          
+                          {item.order_number && (
+                            <Text style={styles.orderNumber}>#{item.order_number}</Text>
+                          )}
+                          <View style={styles.returnCardFooter}>
+                            <Text style={styles.priceText}>{formatPrice(productPrice)}</Text>
+                            
+                            {/* Show different actions based on status */}
+                            {item.status === 'pending' && (
+                              <TouchableOpacity 
+                                style={styles.processButton}
+                                onPress={() => handleProcessReturn(item.id)}
+                              >
+                                <Text style={styles.processButtonText}>Select Items</Text>
+                              </TouchableOpacity>
+                            )}
+                            
+                            {(item.status === 'in_progress' || item.status === 'shipped') && (
+                              <TouchableOpacity style={styles.trackButton}>
+                                <Text style={styles.trackButtonText}>Track Return</Text>
+                              </TouchableOpacity>
+                            )}
+                            
+                            {item.status === 'completed' && (
+                              <View style={styles.refundBadge}>
+                                <Text style={styles.refundText}>
+                                  Refunded: {formatPrice(item.refund_amount)}
+                                </Text>
+                              </View>
+                            )}
+                          </View>
+                        </View>
+                      </View>
+                    </TouchableOpacity>
+                  </Link>
+                </Animated.View>
+              );
+            });
           })
         )}
 
@@ -490,15 +572,17 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.05,
     shadowRadius: 10,
     elevation: 2,
+    minHeight: 120,
   },
   returnCardLeft: {
     marginRight: 15,
   },
   productImage: {
-    width: 70,
-    height: 70,
+    width: 80,
+    height: 80,
     borderRadius: 10,
     backgroundColor: '#F1F5F9',
+    marginTop: 4,
   },
   returnCardContent: {
     flex: 1,
@@ -526,16 +610,19 @@ const styles = StyleSheet.create({
   },
   productInfoContainer: {
     flexDirection: 'row',
-    alignItems: 'center',
+    alignItems: 'flex-start',
     justifyContent: 'space-between',
-    marginBottom: 2,
+    marginBottom: 6,
   },
-  productName: {
-    fontSize: 14,
-    fontFamily: 'Inter-Medium',
-    color: '#4B5563',
+  productItemsContainer: {
     flex: 1,
     marginRight: 8,
+  },
+  productItemText: {
+    fontSize: 13,
+    fontFamily: 'Inter-Medium',
+    color: '#4B5563',
+    marginBottom: 3,
   },
   itemCountBadge: {
     backgroundColor: '#E5E7EB',

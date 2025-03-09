@@ -42,24 +42,10 @@ export function formatPhoneNumber(phone?: string | null): string {
 export function getProductSummary(products?: any[] | null): string {
   if (!products || products.length === 0) return 'No products';
   
-  const firstProduct = products[0];
-  const productName = firstProduct.product_name || 'Product';
-  
-  if (products.length === 1) {
-    return productName;
-  }
-  
-  // Show more detailed summary for multiple products
-  if (products.length <= 3) {
-    // If 2-3 products, list them all
-    return products
-      .map(p => p.product_name || 'Product')
-      .join(', ');
-  }
-  
-  // If more than 3 products, show first two and count
-  const firstTwo = products.slice(0, 2).map(p => p.product_name || 'Product').join(', ');
-  return `${firstTwo} +${products.length - 2} more`;
+  // Show all products in the list
+  return products
+    .map(p => p.product_name || 'Product')
+    .join(', ');
 }
 
 /**
