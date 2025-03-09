@@ -284,6 +284,9 @@ const styles = StyleSheet.create({
     borderRadius: 20,
     backgroundColor: '#F1F5F9',
     marginRight: 10,
+    minHeight: 36, // Hauteur minimum pour éviter le découpage du texte
+    justifyContent: 'center', // Centrer verticalement le texte
+    alignItems: 'center', // Centrer horizontalement le texte
   },
   activeFilterTab: {
     backgroundColor: '#3B82F6',
@@ -292,6 +295,8 @@ const styles = StyleSheet.create({
     fontSize: 14,
     fontFamily: 'Inter-Medium',
     color: '#64748B',
+    textAlignVertical: 'center', // S'assurer que le texte est centré verticalement
+    includeFontPadding: false, // Éviter le padding automatique de la police
   },
   activeFilterTabText: {
     color: '#FFFFFF',
