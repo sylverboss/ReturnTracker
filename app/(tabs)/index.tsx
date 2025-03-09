@@ -28,9 +28,13 @@ import { getReturnsByStatus, getReturnStatistics } from '../../services/returnSe
 import { calculateDaysLeft } from '../../utils/dateUtils';
 import { formatPrice, getProductSummary, calculateTotalPrice } from '../../utils/formatUtils';
 import { supabase } from '../../lib/supabase';
+import { createLogger } from '../../lib/logging';
 
 // Default placeholder image for products
 const PLACEHOLDER_IMAGE = 'https://via.placeholder.com/70';
+
+// Create a logger for the Home screen
+const logger = createLogger('HomeScreen');
 
 export default function HomeScreen() {
   const router = useRouter();
@@ -58,35 +62,45 @@ export default function HomeScreen() {
   
   // Check if user is authenticated
   const checkAuth = async () => {
+    logger.debug('Checking authentication status');
     try {
       const { data } = await supabase.auth.getSession();
       if (!data.session) {
+        logger.info('No active session found, redirecting to login');
         router.replace('/(auth)/login');
+      } else {
+        logger.debug('User is authenticated');
       }
     } catch (err) {
-      console.error('Authentication check failed:', err);
+      logger.error('Authentication check failed:', err);
     }
   };
   
   // Fetch all necessary data
   const fetchData = async () => {
-    if (isRefreshing) return; // Prevent multiple simultaneous fetches
+    if (isRefreshing) {
+      logger.debug('Skipping fetch as refresh is already in progress');
+      return; // Prevent multiple simultaneous fetches
+    }
     
+    logger.info(`Fetching returns data with filter: ${activeFilter}`);
     setIsLoading(true);
     setError(null);
     
     try {
       // Fetch returns based on active filter
       const returnsData = await getReturnsByStatus(activeFilter);
+      logger.debug(`Fetched ${returnsData.length} returns`);
       setReturns(returnsData);
       
       // Fetch statistics only if not already loaded or if refreshing
       if (!statistics || isRefreshing) {
+        logger.debug('Fetching statistics data');
         const statsData = await getReturnStatistics();
         setStatistics(statsData);
       }
     } catch (err) {
-      console.error('Error fetching data:', err);
+      logger.error('Error fetching data:', err);
       setError('Failed to load data. Please check your connection and try again.');
     } finally {
       setIsLoading(false);
@@ -96,17 +110,20 @@ export default function HomeScreen() {
   
   // Handle pull-to-refresh
   const onRefresh = useCallback(() => {
+    logger.debug('Pull-to-refresh triggered');
     setIsRefreshing(true);
     fetchData();
   }, [activeFilter]);
   
   // Retry after error
   const handleRetry = () => {
+    logger.debug('Retry button pressed after error');
     fetchData();
   };
   
   // Process return action - navigate to select items to return
   const handleProcessReturn = (returnId: string) => {
+    logger.debug(`Processing return for ID: ${returnId}`);
     // Route to a page where users can select which items to return from the bundle
     router.push(`/add-return?id=${returnId}`);
   };
@@ -371,8 +388,10 @@ export default function HomeScreen() {
             
             // Create a card for each product in the order_items
             return item.order_items.products.map((product, productIndex) => {
+              logger.debug(`Rendering product ${product.product_name}, from retailer ${item.retailer_name}`);
               // Use product-specific deadline if available, otherwise use the return's deadline
               const productDeadline = product.return_deadline || item.return_deadline;
+              logger.debug(`Product deadline: ${productDeadline}`);
               const productDaysLeft = calculateDaysLeft(productDeadline);
               
               const imageUrl = product.product_image_url || PLACEHOLDER_IMAGE;

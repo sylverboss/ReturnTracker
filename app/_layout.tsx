@@ -15,6 +15,7 @@ import { useAuth } from '../context/AuthContext';
 import { createLogger } from '../lib/logging';
 import { handleAuthLink } from './middleware/auth-link-handler';
 import DeepLinkDebugTool from '../components/DeepLinkDebugTool';
+import LoggingDebugTool from '../components/LoggingDebugTool';
 
 // Initialize logger
 const logger = createLogger('RootLayout');
@@ -141,8 +142,13 @@ function MainLayout() {
           </Stack>
           <StatusBar style="auto" />
           
-          {/* Add the deep link debug tool in development */}
-          {process.env.NODE_ENV !== 'production' && <DeepLinkDebugTool />}
+          {/* Add debug tools in development */}
+          {process.env.NODE_ENV !== 'production' && (
+            <>
+              <DeepLinkDebugTool />
+              <LoggingDebugTool />
+            </>
+          )}
         </GestureHandlerRootView>
       </SafeAreaProvider>
     </IconProvider>
